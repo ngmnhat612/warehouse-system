@@ -28,7 +28,10 @@ class CategorySeeder extends Seeder
 
         foreach ($children as $row) {
             $row['description'] = null;
-            DB::table('categories')->insertOrIgnore($row);
+            DB::table('categories')->updateOrInsert(
+                ['code' => $row['code']],
+                $row
+            );
         }
     }
 }

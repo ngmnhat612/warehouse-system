@@ -40,7 +40,10 @@ class LocationSeeder extends Seeder
         ];
 
         foreach ($subLocations as $row) {
-            DB::table('locations')->insertOrIgnore($row);
+            DB::table('locations')->updateOrInsert(
+                ['code' => $row['code']],
+                $row
+            );
         }
     }
 }
