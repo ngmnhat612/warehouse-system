@@ -48,7 +48,10 @@ class SupplierSeeder extends Seeder
         ];
 
         foreach ($suppliers as $row) {
-            DB::table('suppliers')->insertOrIgnore($row);
+            DB::table('suppliers')->updateOrInsert(
+                ['code' => $row['code']],
+                $row
+            );
         }
     }
 }

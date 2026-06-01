@@ -141,7 +141,10 @@ class ProductSeeder extends Seeder
         ];
 
         foreach ($products as $row) {
-            DB::table('products')->insertOrIgnore($row);
+            DB::table('products')->updateOrInsert(
+                ['code' => $row['code']],
+                $row
+            );
         }
     }
 }
