@@ -30,7 +30,7 @@
 
     <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('receipts.*') ? 'active' : '' }}"
-         href="#">
+         href="{{ route('receipts.index') }}">
         <svg class="nav-icon">
           <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-thick-bottom') }}"></use>
         </svg>
@@ -40,7 +40,7 @@
 
     <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('deliveries.*') ? 'active' : '' }}"
-         href="#">
+         href="{{ route('issues.index') }}">
         <svg class="nav-icon">
           <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-thick-top') }}"></use>
         </svg>
@@ -50,7 +50,7 @@
 
     <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('transfers.*') ? 'active' : '' }}"
-         href="#">
+         href="{{ route('transfers.index') }}">
         <svg class="nav-icon">
           <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-transfer') }}"></use>
         </svg>
@@ -60,7 +60,7 @@
 
     <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('stocktakes.*') ? 'active' : '' }}"
-         href="#">
+         href="{{ route('stocktakes.index') }}">
         <svg class="nav-icon">
           <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-clipboard') }}"></use>
         </svg>
@@ -73,7 +73,7 @@
 
     <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('inventory.*') ? 'active' : '' }}"
-         href="#">
+         href="{{ route('inventory.index') }}">
         <svg class="nav-icon">
           <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-storage') }}"></use>
         </svg>
@@ -83,7 +83,7 @@
 
     <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('locations.*') ? 'active' : '' }}"
-         href="#">
+         href="{{ route('inventory.locations') }}">
         <svg class="nav-icon">
           <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-map') }}"></use>
         </svg>
@@ -225,6 +225,45 @@
   </ul>
 
   <div class="sidebar-footer border-top d-none d-md-flex">
-    <button class="sidebar-toggler" type="button" data-coreui-toggle="unfoldable"></button>
+    <button class="sidebar-toggler" type="button" data-coreui-toggle="narrow"></button>
   </div>
 </div>
+
+{{-- Sidebar narrow: click nav-group-toggle → mở sidebar + bật group --}}
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const sidebar    = document.getElementById('sidebar');
+  const sidebarObj = () => coreui.Sidebar.getOrCreateInstance(sidebar);
+
+  sidebar.addEventListener('click', function (e) {
+    // Chỉ xử lý khi sidebar đang narrow
+    if (!sidebar.classList.contains('sidebar-narrow')) return;
+
+    const toggle = e.target.closest('.nav-group-toggle');
+    if (!toggle) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const navGroup = toggle.closest('.nav-group');
+
+    // 1. Mở rộng sidebar (reset narrow)
+    sidebarObj().reset();
+
+    // 2. Chờ transition xong (~150ms) rồi bật group tương ứng
+    setTimeout(function () {
+      if (!navGroup.classList.contains('show')) {
+        // Dùng Navigation plugin để toggle đúng animation
+        const navEl = sidebar.querySelector('[data-coreui="navigation"]');
+        if (navEl) {
+          const navObj = coreui.Navigation.getOrCreateInstance(navEl);
+          // Simulate click để Navigation plugin xử lý slideDown
+          toggle.click();
+        }
+      }
+    }, 200);
+  });
+});
+</script>
+@endpush
