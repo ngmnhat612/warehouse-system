@@ -355,7 +355,7 @@
   }
 
   function openForm(id = null) {
-    const offcanvas = new coreui.Offcanvas(document.getElementById('locationOffcanvas'));
+    const offcanvas = new coreui.OffCanvas(document.getElementById('locationOffcanvas'));
     const form      = document.getElementById('locationForm');
     const title     = document.getElementById('locationOffcanvasTitle');
     const method    = document.getElementById('formMethod');

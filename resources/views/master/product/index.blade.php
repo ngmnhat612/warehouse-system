@@ -93,6 +93,7 @@
           <thead class="table-light">
             <tr>
               <th class="text-center" style="width:55px">#</th>
+              <th style="width:60px">Ảnh</th>
               <th style="width:110px">Mã</th>
               <th>Tên hàng hóa</th>
               <th style="width:140px">Nhóm</th>
@@ -108,6 +109,20 @@
               <tr>
                 <td class="text-center text-body-secondary">
                   {{ ($products->currentPage() - 1) * $products->perPage() + $index + 1 }}
+                </td>
+                <td>
+                  @if ($product->image_path)
+                    <img src="{{ Storage::url($product->image_path) }}"
+                         alt="{{ $product->name }}"
+                         class="rounded" style="width:40px;height:40px;object-fit:cover;">
+                  @else
+                    <div class="rounded bg-body-secondary d-flex align-items-center justify-content-center"
+                         style="width:40px;height:40px">
+                      <svg class="icon icon-sm text-body-tertiary">
+                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-image') }}"></use>
+                      </svg>
+                    </div>
+                  @endif
                 </td>
                 <td><code class="text-primary fw-medium">{{ $product->code }}</code></td>
                 <td>
@@ -155,7 +170,7 @@
               </tr>
             @empty
               <tr>
-                <td colspan="9" class="text-center text-body-secondary py-5">
+                <td colspan="10" class="text-center text-body-secondary py-5">
                   <svg class="icon icon-3xl d-block mx-auto mb-2 opacity-25">
                     <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-storage') }}"></use>
                   </svg>
@@ -179,8 +194,8 @@
     @endif
   </div>
 
-  {{-- OFFCANVAS FORM (rộng hơn modal vì nhiều trường) --}}
-  <div class="offcanvas offcanvas-end" style="width:520px" tabindex="-1" id="productOffcanvas">
+  {{-- OFFCANVAS FORM --}}
+  <div class="offcanvas offcanvas-end" style="width:540px" tabindex="-1" id="productOffcanvas">
     <div class="offcanvas-header border-bottom">
       <h5 class="offcanvas-title" id="productOffcanvasTitle">Thêm hàng hóa</h5>
       <button type="button" class="btn-close" data-coreui-dismiss="offcanvas"></button>
@@ -190,8 +205,37 @@
         @csrf
         <input type="hidden" name="_method" id="formMethod" value="POST">
 
-        {{-- THÔNG TIN CƠ BẢN --}}
+        {{-- ===== THÔNG TIN CƠ BẢN ===== --}}
         <div class="mb-3 fw-semibold text-primary border-bottom pb-1">Thông tin cơ bản</div>
+
+        {{-- Ảnh hàng hóa --}}
+        <div class="mb-3">
+          <label class="form-label">Ảnh hàng hóa</label>
+          <div class="d-flex gap-3 align-items-start">
+            <div id="imagePreviewWrap" class="rounded border bg-body-secondary d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                 style="width:80px;height:80px">
+              <img id="imagePreview" src="" alt="" class="d-none" style="width:80px;height:80px;object-fit:cover;">
+              <svg id="imageIcon" class="icon icon-2xl text-body-tertiary">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-image') }}"></use>
+              </svg>
+            </div>
+            <div class="flex-grow-1">
+              <input type="file" class="form-control form-control-sm" id="pImage" name="image"
+                     accept="image/jpeg,image/png,image/webp" onchange="previewImage(this)">
+              <div class="form-text">JPEG, PNG, WebP — tối đa 2 MB</div>
+              {{-- Nút xóa ảnh (chỉ hiện khi edit và đang có ảnh) --}}
+              <div id="removeImageWrap" class="d-none mt-1">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="remove_image"
+                         id="removeImage" value="1" onchange="toggleRemoveImage(this)">
+                  <label class="form-check-label text-danger small" for="removeImage">
+                    Xóa ảnh hiện tại
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="row g-3 mb-3">
           <div class="col-5">
@@ -237,13 +281,22 @@
           </div>
         </div>
 
+        {{-- Barcode + nút sinh tự động --}}
         <div class="mb-3">
           <label class="form-label">Barcode / QR</label>
-          <input type="text" class="form-control" id="pBarcode" name="barcode"
-                 placeholder="Mã barcode hoặc QR" maxlength="100">
+          <div class="input-group">
+            <input type="text" class="form-control font-monospace" id="pBarcode" name="barcode"
+                   placeholder="Mã barcode hoặc QR" maxlength="100">
+            <button type="button" class="btn btn-outline-secondary" id="genBarcodeBtn"
+                    onclick="generateBarcode()" title="Sinh barcode EAN-13 tự động">
+              <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-barcode') }}"></use></svg>
+              Tự động
+            </button>
+          </div>
+          <div class="form-text">Hoặc nhấn <strong>Tự động</strong> để sinh mã EAN-13 nội bộ</div>
         </div>
 
-        {{-- THÔNG SỐ KỸ THUẬT --}}
+        {{-- ===== THÔNG SỐ KỸ THUẬT ===== --}}
         <div class="mb-3 fw-semibold text-primary border-bottom pb-1 mt-4">Thông số kỹ thuật</div>
 
         <div class="row g-3 mb-3">
@@ -259,7 +312,7 @@
           </div>
         </div>
 
-        {{-- QUẢN LÝ TỒN KHO --}}
+        {{-- ===== QUẢN LÝ TỒN KHO ===== --}}
         <div class="mb-3 fw-semibold text-primary border-bottom pb-1 mt-4">Quản lý tồn kho</div>
 
         <div class="row g-3 mb-3">
@@ -277,15 +330,26 @@
 
         <div class="row g-3 mb-3">
           <div class="col-6">
-            <label class="form-label">Kiểu theo dõi <span class="text-danger">*</span></label>
-            <select class="form-select" id="pTracking" name="tracking_type" required>
+            <label class="form-label">Kiểu theo dõi <span class="text-danger">*</span>
+              <span class="ms-1" data-coreui-toggle="tooltip"
+                    title="None: không track | Lot: theo lô | Serial: theo số serial | Expiry: theo hạn dùng">
+                <svg class="icon icon-sm text-info"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}"></use></svg>
+              </span>
+            </label>
+            <select class="form-select" id="pTracking" name="tracking_type" required
+                    onchange="onTrackingChange(this.value)">
               @foreach (\App\Models\Product::trackingTypes() as $val => $label)
                 <option value="{{ $val }}">{{ $label }}</option>
               @endforeach
             </select>
           </div>
           <div class="col-6">
-            <label class="form-label">Quy tắc xuất kho</label>
+            <label class="form-label">Quy tắc xuất kho
+              <span class="ms-1" data-coreui-toggle="tooltip"
+                    title="FIFO: xuất hàng nhập trước | FEFO: xuất hàng hết hạn trước | LIFO: xuất hàng nhập sau">
+                <svg class="icon icon-sm text-info"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}"></use></svg>
+              </span>
+            </label>
             <select class="form-select" id="pRotation" name="stock_rotation">
               @foreach (\App\Models\Product::rotationTypes() as $val => $label)
                 <option value="{{ $val }}">{{ $label }}</option>
@@ -294,14 +358,15 @@
           </div>
         </div>
 
-        <div class="mb-3" id="alertExpiryGroup">
+        {{-- Cảnh báo hết hạn — chỉ hiện khi tracking = Expiry (4) --}}
+        <div class="mb-3" id="alertExpiryGroup" style="display:none">
           <label class="form-label">Cảnh báo hết hạn trước (ngày)</label>
           <input type="number" class="form-control" id="pAlertExpiry" name="alert_before_expiry"
                  min="0" placeholder="VD: 30">
-          <div class="form-text">Để trống nếu không cần cảnh báo</div>
+          <div class="form-text">Cảnh báo khi hàng sắp hết hạn trong vòng N ngày</div>
         </div>
 
-        {{-- MÔ TẢ + TRẠNG THÁI --}}
+        {{-- ===== THÔNG TIN THÊM ===== --}}
         <div class="mb-3 fw-semibold text-primary border-bottom pb-1 mt-4">Thông tin thêm</div>
 
         <div class="mb-3">
@@ -370,44 +435,79 @@
 
 @push('scripts')
 <script>
-  const routeStore = '{{ route('master.product.store') }}';
-  const routeBase  = '{{ url('master/product') }}';
+  const routeStore       = '{{ route('master.product.store') }}';
+  const routeBase        = '{{ url('master/product') }}';
+  const routeGenBarcode  = '{{ url('master/product/generate-barcode') }}';
 
-  // Lưu dữ liệu product để fill form khi edit
-  const products = @json($products->keyBy('id'));
+  // Map product data for edit mode (paginated → keyBy in JS)
+  const productsMap = {};
+  @foreach ($products as $p)
+    productsMap[{{ $p->id }}] = {
+      id:                  {{ $p->id }},
+      code:                '{{ addslashes($p->code) }}',
+      name:                '{{ addslashes($p->name) }}',
+      category_id:         {{ $p->category_id ?? 'null' }},
+      uom_id:              {{ $p->uom_id ?? 'null' }},
+      uom_purchase_id:     {{ $p->uom_purchase_id ?? 'null' }},
+      barcode:             '{{ addslashes($p->barcode ?? '') }}',
+      weight:              '{{ $p->weight ?? '' }}',
+      volume:              '{{ $p->volume ?? '' }}',
+      min_stock:           '{{ $p->min_stock ?? 0 }}',
+      max_stock:           '{{ $p->max_stock ?? '' }}',
+      tracking_type:       {{ $p->tracking_type ?? 1 }},
+      stock_rotation:      {{ $p->stock_rotation ?? 1 }},
+      alert_before_expiry: '{{ $p->alert_before_expiry ?? '' }}',
+      description:         '{{ addslashes($p->description ?? '') }}',
+      status:              {{ $p->status }},
+      image_path:          '{{ $p->image_path ?? '' }}',
+      image_url:           '{{ $p->image_path ? Storage::url($p->image_path) : '' }}',
+    };
+  @endforeach
 
+  // ===== MỞ FORM =====
   function openForm(id = null) {
-    const offcanvas = new coreui.Offcanvas(document.getElementById('productOffcanvas'));
+    const offcanvas = new coreui.OffCanvas(document.getElementById('productOffcanvas'));
     const form      = document.getElementById('productForm');
     const title     = document.getElementById('productOffcanvasTitle');
     const method    = document.getElementById('formMethod');
 
-    // Reset form
+    // Reset form & preview
     form.reset();
     document.getElementById('pStatusActive').checked = true;
+    resetImagePreview();
+    document.getElementById('removeImageWrap').classList.add('d-none');
+    document.getElementById('alertExpiryGroup').style.display = 'none';
 
-    if (id && products[id]) {
-      const p = products[id];
-      title.textContent = 'Chỉnh sửa hàng hóa';
-      form.action       = `${routeBase}/${id}`;
-      method.value      = 'PUT';
+    if (id && productsMap[id]) {
+      const p = productsMap[id];
+      title.textContent  = 'Chỉnh sửa hàng hóa';
+      form.action        = `${routeBase}/${id}`;
+      method.value       = 'PUT';
 
-      document.getElementById('pCode').value          = p.code ?? '';
-      document.getElementById('pName').value          = p.name ?? '';
+      document.getElementById('pCode').value          = p.code;
+      document.getElementById('pName').value          = p.name;
       document.getElementById('pCategory').value      = p.category_id ?? '';
       document.getElementById('pUom').value           = p.uom_id ?? '';
       document.getElementById('pUomPurchase').value   = p.uom_purchase_id ?? '';
-      document.getElementById('pBarcode').value       = p.barcode ?? '';
-      document.getElementById('pWeight').value        = p.weight ?? '';
-      document.getElementById('pVolume').value        = p.volume ?? '';
-      document.getElementById('pMinStock').value      = p.min_stock ?? 0;
-      document.getElementById('pMaxStock').value      = p.max_stock ?? '';
-      document.getElementById('pTracking').value      = p.tracking_type ?? 1;
-      document.getElementById('pRotation').value      = p.stock_rotation ?? 1;
-      document.getElementById('pAlertExpiry').value   = p.alert_before_expiry ?? '';
-      document.getElementById('pDesc').value          = p.description ?? '';
+      document.getElementById('pBarcode').value       = p.barcode;
+      document.getElementById('pWeight').value        = p.weight;
+      document.getElementById('pVolume').value        = p.volume;
+      document.getElementById('pMinStock').value      = p.min_stock;
+      document.getElementById('pMaxStock').value      = p.max_stock;
+      document.getElementById('pTracking').value      = p.tracking_type;
+      document.getElementById('pRotation').value      = p.stock_rotation;
+      document.getElementById('pAlertExpiry').value   = p.alert_before_expiry;
+      document.getElementById('pDesc').value          = p.description;
       document.getElementById(p.status == 1 ? 'pStatusActive' : 'pStatusInactive').checked = true;
 
+      // Hiện ảnh cũ
+      if (p.image_url) {
+        showImagePreview(p.image_url);
+        document.getElementById('removeImageWrap').classList.remove('d-none');
+      }
+
+      // Hiện/ẩn alert expiry
+      onTrackingChange(p.tracking_type);
     } else {
       title.textContent = 'Thêm hàng hóa';
       form.action       = routeStore;
@@ -418,13 +518,81 @@
     setTimeout(() => document.getElementById('pCode').focus(), 400);
   }
 
+  // ===== BARCODE =====
+  async function generateBarcode() {
+    const btn = document.getElementById('genBarcodeBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang sinh...';
+    try {
+      const res  = await fetch(routeGenBarcode, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await res.json();
+      if (data.barcode) {
+        document.getElementById('pBarcode').value = data.barcode;
+      }
+    } catch (e) {
+      alert('Không thể sinh barcode. Vui lòng thử lại.');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-barcode') }}"></use></svg> Tự động`;
+    }
+  }
+
+  // ===== TRACKING TYPE =====
+  function onTrackingChange(val) {
+    const expiryGroup = document.getElementById('alertExpiryGroup');
+    // Chỉ hiện alert expiry khi tracking = 4 (Expiry)
+    expiryGroup.style.display = (val == 4) ? 'block' : 'none';
+  }
+  document.getElementById('pTracking').addEventListener('change', function () {
+    onTrackingChange(this.value);
+  });
+
+  // ===== IMAGE PREVIEW =====
+  function previewImage(input) {
+    if (input.files && input.files[0]) {
+      const reader = new FileReader();
+      reader.onload = e => showImagePreview(e.target.result);
+      reader.readAsDataURL(input.files[0]);
+      // Uncheck "xóa ảnh" nếu user chọn ảnh mới
+      const removeCheck = document.getElementById('removeImage');
+      if (removeCheck) removeCheck.checked = false;
+    }
+  }
+
+  function showImagePreview(src) {
+    const img  = document.getElementById('imagePreview');
+    const icon = document.getElementById('imageIcon');
+    img.src = src;
+    img.classList.remove('d-none');
+    icon.classList.add('d-none');
+  }
+
+  function resetImagePreview() {
+    const img  = document.getElementById('imagePreview');
+    const icon = document.getElementById('imageIcon');
+    img.src = '';
+    img.classList.add('d-none');
+    icon.classList.remove('d-none');
+    document.getElementById('removeImage').checked = false;
+  }
+
+  function toggleRemoveImage(checkbox) {
+    if (checkbox.checked) {
+      resetImagePreview();
+      document.getElementById('pImage').value = '';
+    }
+  }
+
+  // ===== XÓA SẢN PHẨM =====
   function confirmDelete(id, name) {
     document.getElementById('deleteProductName').textContent = name;
     document.getElementById('deleteForm').action = `${routeBase}/${id}`;
     new coreui.Modal(document.getElementById('deleteModal')).show();
   }
 
-  // Auto viết hoa mã hàng
+  // ===== AUTO UPPERCASE MÃ =====
   document.getElementById('pCode').addEventListener('input', function () {
     const pos = this.selectionStart;
     this.value = this.value.toUpperCase();

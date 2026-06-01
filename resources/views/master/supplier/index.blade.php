@@ -308,7 +308,7 @@
   const suppliers  = @json($suppliers->keyBy('id'));
 
   function openForm(id = null) {
-    const offcanvas = new coreui.Offcanvas(document.getElementById('supplierOffcanvas'));
+    const offcanvas = new coreui.OffCanvas(document.getElementById('supplierOffcanvas'));
     const form      = document.getElementById('supplierForm');
     const title     = document.getElementById('supplierOffcanvasTitle');
     const method    = document.getElementById('formMethod');
