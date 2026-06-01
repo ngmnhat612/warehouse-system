@@ -1,0 +1,77 @@
+<header class="header sticky-top">
+  <div class="container-fluid px-4">
+    <button class="header-toggler" type="button"
+      onclick="coreui.Sidebar.getInstance(document.querySelector('#sidebar')).toggle()"
+      style="margin-inline-start: -14px;">
+      <svg class="icon icon-lg">
+        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-menu') }}"></use>
+      </svg>
+    </button>
+
+    {{-- Breadcrumb ở header (desktop) --}}
+    <nav class="d-none d-md-flex ms-3" aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item">
+          <a href="{{ route('dashboard') }}">Trang chủ</a>
+        </li>
+        @yield('breadcrumb')
+      </ol>
+    </nav>
+
+    <ul class="header-nav ms-auto">
+      {{-- Thông báo --}}
+      <li class="nav-item dropdown d-none d-md-block">
+        <a class="nav-link" href="#" role="button" data-coreui-toggle="dropdown">
+          <svg class="icon icon-lg">
+            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-bell') }}"></use>
+          </svg>
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end pt-0">
+          <li class="dropdown-header bg-body-tertiary fw-semibold py-2">Thông báo</li>
+          <li><a class="dropdown-item text-body-secondary py-2" href="#">Không có thông báo mới</a></li>
+        </ul>
+      </li>
+    </ul>
+
+    <ul class="header-nav">
+      {{-- Avatar + dropdown user --}}
+      <li class="nav-item dropdown">
+        <a class="nav-link py-0 pe-0" href="#" role="button" data-coreui-toggle="dropdown">
+          <div class="avatar avatar-md">
+            <svg class="icon icon-lg text-body-secondary" style="margin-top:6px">
+              <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-user') }}"></use>
+            </svg>
+          </div>
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end pt-0">
+          <li class="dropdown-header bg-body-tertiary fw-semibold py-2">
+            {{ auth()->user()->name ?? 'Người dùng' }}
+            <div class="small text-body-secondary fw-normal">
+              {{ auth()->user()->email ?? '' }}
+            </div>
+          </li>
+          <li>
+            <a class="dropdown-item" href="#">
+              <svg class="icon me-2">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-settings') }}"></use>
+              </svg>
+              Cài đặt
+            </a>
+          </li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <form method="POST" action="{{ route('logout') }}">
+              @csrf
+              <button type="submit" class="dropdown-item text-danger">
+                <svg class="icon me-2">
+                  <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-account-logout') }}"></use>
+                </svg>
+                Đăng xuất
+              </button>
+            </form>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+</header>

@@ -1,0 +1,138 @@
+<?php
+
+namespace App\Http\Controllers\Master;
+
+use App\Http\Controllers\Controller;
+use App\Models\Category;
+use Illuminate\Http\Request;
+
+class CategoryController extends Controller
+{
+    /**
+     * Danh sách danh mục
+     */
+    public function index(Request $request)
+    {
+        $query = Category::with('parent');
+
+        if ($search = $request->search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%");
+            });
+        }
+
+        if ($request->status !== null && $request->status !== '') {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->parent_id === 'root') {
+            $query->whereNull('parent_id');
+        } elseif ($request->parent_id) {
+            $query->where('parent_id', $request->parent_id);
+        }
+
+        $categories  = $query->orderByRaw('ISNULL(parent_id, 0)')->orderBy('name')->paginate(15)->withQueryString();
+        $totalCount  = Category::count();
+        $activeCount = Category::where('status', 1)->count();
+
+        // Danh sách danh mục cha cho dropdown (chỉ lấy danh mục gốc)
+        $parentOptions = Category::whereNull('parent_id')->active()->orderBy('name')->get();
+
+        return view('master.category.index', compact(
+            'categories', 'totalCount', 'activeCount', 'parentOptions'
+        ));
+    }
+
+    /**
+     * Tạo mới danh mục
+     */
+    public function store(Request $request)
+    {
+        $request->validate([
+            'code'        => 'required|string|max:50|unique:categories,code',
+            'name'        => 'required|string|max:200',
+            'parent_id'   => 'nullable|exists:categories,id',
+            'description' => 'nullable|string|max:500',
+            'status'      => 'required|in:0,1',
+        ], [
+            'code.required' => 'Vui lòng nhập mã danh mục.',
+            'code.unique'   => 'Mã danh mục đã tồn tại.',
+            'code.max'      => 'Mã danh mục không quá 50 ký tự.',
+            'name.required' => 'Vui lòng nhập tên danh mục.',
+            'name.max'      => 'Tên danh mục không quá 200 ký tự.',
+            'parent_id.exists' => 'Danh mục cha không hợp lệ.',
+        ]);
+
+        Category::create([
+            'code'        => strtoupper(trim($request->code)),
+            'name'        => $request->name,
+            'parent_id'   => $request->parent_id ?: null,
+            'description' => $request->description,
+            'status'      => $request->status,
+        ]);
+
+        return redirect()->route('master.category.index')
+            ->with('success', "Đã thêm danh mục \"{$request->name}\" thành công.");
+    }
+
+    /**
+     * Cập nhật danh mục
+     */
+    public function update(Request $request, Category $category)
+    {
+        $request->validate([
+            'code'        => "required|string|max:50|unique:categories,code,{$category->id}",
+            'name'        => 'required|string|max:200',
+            'parent_id'   => 'nullable|exists:categories,id',
+            'description' => 'nullable|string|max:500',
+            'status'      => 'required|in:0,1',
+        ], [
+            'code.required' => 'Vui lòng nhập mã danh mục.',
+            'code.unique'   => 'Mã danh mục đã tồn tại.',
+            'name.required' => 'Vui lòng nhập tên danh mục.',
+        ]);
+
+        // Tránh circular reference: không cho chọn chính nó hoặc con cháu làm cha
+        if ($request->parent_id) {
+            $descendantIds = $category->getDescendantIds();
+            if ($request->parent_id == $category->id || in_array($request->parent_id, $descendantIds)) {
+                return redirect()->route('master.category.index')
+                    ->with('error', 'Không thể chọn danh mục con làm danh mục cha.');
+            }
+        }
+
+        $category->update([
+            'code'        => strtoupper(trim($request->code)),
+            'name'        => $request->name,
+            'parent_id'   => $request->parent_id ?: null,
+            'description' => $request->description,
+            'status'      => $request->status,
+        ]);
+
+        return redirect()->route('master.category.index')
+            ->with('success', "Đã cập nhật danh mục \"{$category->name}\" thành công.");
+    }
+
+    /**
+     * Xóa danh mục
+     */
+    public function destroy(Category $category)
+    {
+        if ($category->hasChildren()) {
+            return redirect()->route('master.category.index')
+                ->with('error', "Không thể xóa \"{$category->name}\" vì có danh mục con.");
+        }
+
+        if ($category->products()->exists()) {
+            return redirect()->route('master.category.index')
+                ->with('error', "Không thể xóa \"{$category->name}\" vì đang được sử dụng bởi hàng hóa.");
+        }
+
+        $name = $category->name;
+        $category->delete();
+
+        return redirect()->route('master.category.index')
+            ->with('success', "Đã xóa danh mục \"{$name}\" thành công.");
+    }
+}
