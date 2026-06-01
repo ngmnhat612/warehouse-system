@@ -9,10 +9,12 @@ use Illuminate\Http\Request;
 class CategoryController extends Controller
 {
     /**
-     * Danh sách danh mục
+     * Danh sách danh mục — hỗ trợ 2 chế độ: flat list (paginate) và tree view (all)
      */
     public function index(Request $request)
     {
+        $viewMode = $request->get('view', 'list'); // 'list' hoặc 'tree'
+
         $query = Category::with('parent');
 
         if ($search = $request->search) {
@@ -20,6 +22,7 @@ class CategoryController extends Controller
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('code', 'like', "%{$search}%");
             });
+            $viewMode = 'list'; // khi search, luôn dùng flat list
         }
 
         if ($request->status !== null && $request->status !== '') {
@@ -32,15 +35,31 @@ class CategoryController extends Controller
             $query->where('parent_id', $request->parent_id);
         }
 
-        $categories  = $query->orderByRaw('ISNULL(parent_id, 0)')->orderBy('name')->paginate(15)->withQueryString();
         $totalCount  = Category::count();
         $activeCount = Category::where('status', 1)->count();
 
-        // Danh sách danh mục cha cho dropdown (chỉ lấy danh mục gốc)
-        $parentOptions = Category::whereNull('parent_id')->active()->orderBy('name')->get();
+        // Danh mục cha cho dropdown — tất cả danh mục (không giới hạn root)
+        $parentOptions = Category::active()->orderBy('name')->get();
+
+        if ($viewMode === 'tree') {
+            // Tree view: lấy tất cả, không paginate, chỉ gốc + eager load con
+            $categories = Category::with('allChildren.allChildren')
+                ->whereNull('parent_id')
+                ->orderBy('name')
+                ->get();
+            $paginator = null;
+        } else {
+            // Flat list: paginate
+            $categories = $query
+                ->orderByRaw('CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END')
+                ->orderBy('name')
+                ->paginate(15)
+                ->withQueryString();
+            $paginator = $categories;
+        }
 
         return view('master.category.index', compact(
-            'categories', 'totalCount', 'activeCount', 'parentOptions'
+            'categories', 'totalCount', 'activeCount', 'parentOptions', 'viewMode', 'paginator'
         ));
     }
 
@@ -72,7 +91,7 @@ class CategoryController extends Controller
             'status'      => $request->status,
         ]);
 
-        return redirect()->route('master.category.index')
+        return redirect()->route('master.category.index', ['view' => $request->input('return_view', 'list')])
             ->with('success', "Đã thêm danh mục \"{$request->name}\" thành công.");
     }
 
@@ -110,7 +129,7 @@ class CategoryController extends Controller
             'status'      => $request->status,
         ]);
 
-        return redirect()->route('master.category.index')
+        return redirect()->route('master.category.index', ['view' => $request->input('return_view', 'list')])
             ->with('success', "Đã cập nhật danh mục \"{$category->name}\" thành công.");
     }
 
