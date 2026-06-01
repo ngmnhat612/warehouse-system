@@ -2,6 +2,8 @@
 
 Hệ thống quản lý kho cho **Ment Automation** — xây dựng trên Laravel 11 + SQL Server 2022.
 
+Giao diện sử dụng template **[CoreUI Free Bootstrap Admin Template](https://github.com/coreui/coreui-free-bootstrap-admin-template)** (v5.x), tích hợp trực tiếp vào `public/vendor/coreui/` (không qua npm) để đảm bảo tính ổn định và dễ tuỳ biến.
+
 ---
 
 ## Yêu cầu hệ thống
@@ -71,8 +73,10 @@ DB_HOST=127.0.0.1
 DB_PORT=1433
 DB_DATABASE=warehouse_db
 DB_USERNAME=sa
-DB_PASSWORD=Warehouse123@
+DB_PASSWORD=your_password_here
 ```
+
+> ⚠️ Không commit file `.env` lên Git. File này đã được thêm vào `.gitignore`.
 
 ---
 
@@ -82,7 +86,7 @@ Kết nối vào SQL Server bằng SSMS hoặc chạy lệnh sau:
 
 ```bash
 docker exec -it warehouse-system-sqlserver-1 /opt/mssql-tools18/bin/sqlcmd \
-  -S localhost -U sa -P "Warehouse123@" -No \
+  -S localhost -U sa -P "your_password_here" -No \
   -Q "CREATE DATABASE warehouse_db COLLATE Vietnamese_CI_AS"
 ```
 
@@ -90,10 +94,11 @@ docker exec -it warehouse-system-sqlserver-1 /opt/mssql-tools18/bin/sqlcmd \
 
 ---
 
-## Bước 6 — Chạy migration
+## Bước 6 — Chạy migration & seeder
 
 ```bash
 php artisan migrate
+php artisan db:seed
 ```
 
 ---
@@ -115,7 +120,7 @@ Truy cập: **http://localhost:8000**
 | Server name | `127.0.0.1,1433` |
 | Authentication | `SQL Server Authentication` |
 | Login | `sa` |
-| Password | `Warehouse123@` |
+| Password | `your_password_here` |
 | Encryption | `Optional` |
 | Trust server certificate | ✅ Bật |
 
@@ -139,6 +144,19 @@ docker compose logs sqlserver
 
 ---
 
+## Giao diện — CoreUI Free Bootstrap Admin Template
+
+Dự án sử dụng **[CoreUI Free Bootstrap Admin Template v5](https://github.com/coreui/coreui-free-bootstrap-admin-template)** làm nền tảng giao diện:
+
+- **CSS/JS** được nhúng tĩnh tại `public/vendor/coreui/` (không phụ thuộc npm build cho CoreUI)
+- **Icons** sử dụng bộ `@coreui/icons` (SVG inline)
+- **Components** dùng: Sidebar, Navigation, Dropdown, Modal, Toast, Badge, Card, Table, Chart (Chart.js tích hợp sẵn trong CoreUI)
+- **Layout** gồm: sidebar cố định bên trái, header top bar, content area responsive
+
+Để cập nhật phiên bản CoreUI mới hơn, tải file từ [coreui.io](https://coreui.io) và thay thế nội dung trong `public/vendor/coreui/`.
+
+---
+
 ## Cấu trúc dự án
 
 ```
@@ -156,6 +174,7 @@ warehouse-system/
 │       │   └── partials/     # sidebar, header, footer
 │       ├── auth/             # Login (CoreUI)
 │       ├── dashboard/        # Dashboard
+│       ├── reports/          # Báo cáo tổng hợp
 │       └── warehouse/        # Các màn hình nghiệp vụ
 ├── public/
 │   └── vendor/coreui/        # CSS, JS, Icons của CoreUI
@@ -183,9 +202,3 @@ warehouse-system/
 - File `.env` chứa mật khẩu — **không commit lên Git**
 - Mỗi lần restart Windows, kiểm tra SQL Server Windows service chưa tự bật lại (sẽ chiếm port 1433)
 - Chạy `docker compose up -d` trước khi `php artisan serve`
-
----
-
-## Liên hệ
-
-Dự án NCKH — Hệ thống quản lý kho Ment Automation

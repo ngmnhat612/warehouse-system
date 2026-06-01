@@ -31,17 +31,13 @@
           <li><a class="dropdown-item text-body-secondary py-2" href="#">Không có thông báo mới</a></li>
         </ul>
       </li>
-    </ul>
 
-    <ul class="header-nav">
       {{-- Avatar + dropdown user --}}
       <li class="nav-item dropdown">
-        <a class="nav-link py-0 pe-0" href="#" role="button" data-coreui-toggle="dropdown">
-          <div class="avatar avatar-md">
-            <svg class="icon icon-lg text-body-secondary" style="margin-top:6px">
-              <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-user') }}"></use>
-            </svg>
-          </div>
+        <a class="nav-link" href="#" role="button" data-coreui-toggle="dropdown">
+          <svg class="icon icon-lg text-body-secondary">
+            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-user') }}"></use>
+          </svg>
         </a>
         <ul class="dropdown-menu dropdown-menu-end pt-0">
           <li class="dropdown-header bg-body-tertiary fw-semibold py-2">
@@ -51,7 +47,7 @@
             </div>
           </li>
           <li>
-            <a class="dropdown-item" href="#">
+            <a class="dropdown-item" href="{{ route('profile.edit') }}">
               <svg class="icon me-2">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-settings') }}"></use>
               </svg>

@@ -14,6 +14,11 @@ use App\Http\Controllers\Master\PutawayRuleController;
 use App\Http\Controllers\Master\ReorderRuleController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\StockReceiptController;
+use App\Http\Controllers\StockIssueController;
+use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\InventoryCheckController;
+use App\Http\Controllers\InventoryController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -142,6 +147,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/export',  [ActivityLogController::class, 'export'])->name('export');
     });
 
+    Route::resource('receipts', StockReceiptController::class);
+    Route::post('receipts/{receipt}/confirm', [StockReceiptController::class, 'confirm'])->name('receipts.confirm');
+    Route::post('receipts/{receipt}/cancel',  [StockReceiptController::class, 'cancel'])->name('receipts.cancel');
+
+    Route::resource('issues', StockIssueController::class);
+    Route::post('issues/{issue}/confirm', [StockIssueController::class, 'confirm'])->name('issues.confirm');
+    Route::post('issues/{issue}/cancel',  [StockIssueController::class, 'cancel'])->name('issues.cancel');
+
+    Route::resource('transfers', StockTransferController::class);
+    Route::post('transfers/{transfer}/confirm', [StockTransferController::class, 'confirm'])->name('transfers.confirm');
+    Route::post('transfers/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('transfers.cancel');
+
+    Route::resource('stocktakes', InventoryCheckController::class);
+
+    // ── TỒN KHO ───────────────────────────────────────────────────────
+    Route::prefix('inventory')->name('inventory.')->group(function () {
+        Route::get('/',       [InventoryController::class, 'index'])->name('index');
+        Route::get('/ledger', [InventoryController::class, 'ledger'])->name('ledger');
+        Route::get('/locations', [InventoryController::class, 'locations'])->name('locations');
+    });
+    
+    
 });
 
 Route::middleware('auth')->group(function () {
