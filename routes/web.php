@@ -51,6 +51,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'destroy' => 'category.destroy',
             ]);
 
+        Route::get('product/generate-barcode', [ProductController::class, 'generateBarcode'])
+            ->name('product.generate-barcode');  
+
         Route::resource('product', ProductController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->names([
@@ -68,6 +71,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'update'  => 'supplier.update',
                 'destroy' => 'supplier.destroy',
             ]);
+
+        Route::get('location/{location}/barcode', [LocationController::class, 'barcode'])
+            ->name('location.barcode');
 
         Route::resource('location', LocationController::class)
             ->only(['index', 'store', 'update', 'destroy'])

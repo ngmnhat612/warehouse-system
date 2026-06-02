@@ -58,156 +58,179 @@
     </div>
   </div>
 
-  {{-- BẢNG DANH SÁCH --}}
-  <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <span class="fw-semibold">Danh sách vị trí kho</span>
-      <form method="GET" action="{{ route('master.location.index') }}" class="d-flex gap-2 flex-wrap">
-        <div class="input-group" style="width:220px">
-          <span class="input-group-text">
-            <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-search') }}"></use></svg>
-          </span>
-          <input type="text" class="form-control" name="search"
-                 value="{{ request('search') }}" placeholder="Mã, tên, barcode...">
+  {{-- VIEW TOGGLE --}}
+  <ul class="nav nav-tabs mb-3" id="locationViewTabs" data-coreui-toggle="tabs">
+    <li class="nav-item">
+      <a class="nav-link active" href="#tabTable" data-coreui-toggle="tab">
+        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use></svg>
+        Danh sách
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#tabTree" data-coreui-toggle="tab">
+        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-sitemap') }}"></use></svg>
+        Sơ đồ cây
+      </a>
+    </li>
+  </ul>
+ 
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tabTable">
+      {{-- BẢNG DANH SÁCH --}}
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span class="fw-semibold">Danh sách vị trí kho</span>
+          <form method="GET" action="{{ route('master.location.index') }}" class="d-flex gap-2 flex-wrap">
+            <div class="input-group" style="width:220px">
+              <span class="input-group-text">
+                <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-search') }}"></use></svg>
+              </span>
+              <input type="text" class="form-control" name="search"
+                    value="{{ request('search') }}" placeholder="Mã, tên, barcode...">
+            </div>
+            <select class="form-select" name="type" style="width:160px">
+              <option value="">Tất cả loại</option>
+              @foreach (\App\Models\Location::typeLabels() as $val => $label)
+                <option value="{{ $val }}" {{ request('type') == $val ? 'selected' : '' }}>{{ $label }}</option>
+              @endforeach
+            </select>
+            <select class="form-select" name="status" style="width:130px">
+              <option value="">Tất cả</option>
+              <option value="1" {{ request('status') == '1' ? 'selected' : '' }}>Hoạt động</option>
+              <option value="0" {{ request('status') == '0' ? 'selected' : '' }}>Ngừng</option>
+            </select>
+            <button type="submit" class="btn btn-outline-primary">Lọc</button>
+            @if(request('search') || request('type') || (request('status') !== null && request('status') !== ''))
+              <a href="{{ route('master.location.index') }}" class="btn btn-outline-secondary">Xóa lọc</a>
+            @endif
+          </form>
         </div>
-        <select class="form-select" name="type" style="width:160px">
-          <option value="">Tất cả loại</option>
-          @foreach (\App\Models\Location::typeLabels() as $val => $label)
-            <option value="{{ $val }}" {{ request('type') == $val ? 'selected' : '' }}>{{ $label }}</option>
-          @endforeach
-        </select>
-        <select class="form-select" name="status" style="width:130px">
-          <option value="">Tất cả</option>
-          <option value="1" {{ request('status') == '1' ? 'selected' : '' }}>Hoạt động</option>
-          <option value="0" {{ request('status') == '0' ? 'selected' : '' }}>Ngừng</option>
-        </select>
-        <button type="submit" class="btn btn-outline-primary">Lọc</button>
-        @if(request('search') || request('type') || (request('status') !== null && request('status') !== ''))
-          <a href="{{ route('master.location.index') }}" class="btn btn-outline-secondary">Xóa lọc</a>
+
+        {{-- Ghi chú loại vị trí --}}
+        <div class="card-header border-top-0 py-2 bg-body-tertiary">
+          <div class="d-flex flex-wrap gap-2 small">
+            <span class="text-body-secondary me-1">Loại vị trí:</span>
+            @foreach (\App\Models\Location::typeLabels() as $val => $label)
+              @php $color = \App\Models\Location::typeColors()[$val]; @endphp
+              <span class="badge bg-{{ $color }}-subtle text-{{ $color }} border border-{{ $color }}-subtle">
+                {{ $label }}
+              </span>
+            @endforeach
+          </div>
+        </div>
+
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="text-center" style="width:55px">#</th>
+                  <th style="width:130px">Mã vị trí</th>
+                  <th>Tên vị trí</th>
+                  <th style="width:150px">Vị trí cha</th>
+                  <th class="text-center" style="width:140px">Loại</th>
+                  <th style="width:120px">Barcode</th>
+                  <th class="text-end" style="width:120px">Giới hạn tồn</th>
+                  <th class="text-center" style="width:120px">Trạng thái</th>
+                  <th class="text-center" style="width:110px">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse ($locations as $index => $loc)
+                  <tr class="{{ $loc->isVirtual() ? 'table-light' : '' }}">
+                    <td class="text-center text-body-secondary">
+                      {{ ($locations->currentPage() - 1) * $locations->perPage() + $index + 1 }}
+                    </td>
+                    <td>
+                      <code class="fw-medium text-{{ $loc->type_color }}">{{ $loc->code }}</code>
+                    </td>
+                    <td>
+                      @if ($loc->parent)
+                        <span class="text-body-secondary me-1" style="font-size:11px">
+                          <svg class="icon icon-sm"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-level-down') }}"></use></svg>
+                        </span>
+                      @endif
+                      <span class="fw-medium">{{ $loc->name }}</span>
+                      @if ($loc->hasChildren())
+                        <span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size:10px">Có vị trí con</span>
+                      @endif
+                      @if ($loc->isVirtual())
+                        <span class="badge bg-body-secondary text-body-secondary border ms-1" style="font-size:10px">Hệ thống</span>
+                      @endif
+                    </td>
+                    <td class="small">
+                      @if ($loc->parent)
+                        <span class="badge bg-body-secondary text-body border">{{ $loc->parent->code }}</span>
+                      @else
+                        <span class="text-body-secondary">— Gốc</span>
+                      @endif
+                    </td>
+                    <td class="text-center">
+                      <span class="badge bg-{{ $loc->type_color }}-subtle text-{{ $loc->type_color }} border border-{{ $loc->type_color }}-subtle">
+                        {{ $loc->type_label }}
+                      </span>
+                    </td>
+                    <td class="small text-body-secondary font-monospace">
+                      {{ $loc->barcode ?? '—' }}
+                    </td>
+                    <td class="text-end small">
+                      {{ $loc->capacity_limit ? number_format($loc->capacity_limit, 0) : '—' }}
+                    </td>
+                    <td class="text-center">
+                      @if ($loc->status == 1)
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">Hoạt động</span>
+                      @else
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Ngừng</span>
+                      @endif
+                    </td>
+                    <td class="text-center">
+                      <button class="btn btn-sm btn-outline-primary me-1"
+                              onclick="openForm({{ $loc->id }})"
+                              title="Chỉnh sửa">
+                        <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-pencil') }}"></use></svg>
+                      </button>
+                      @if (!$loc->isVirtual() && !in_array($loc->code, ['WH']))
+                        <button class="btn btn-sm btn-outline-danger"
+                                onclick="confirmDelete({{ $loc->id }}, '{{ addslashes($loc->name) }}')"
+                                title="Xóa">
+                          <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}"></use></svg>
+                        </button>
+                      @else
+                        <button class="btn btn-sm btn-outline-secondary" disabled title="Vị trí hệ thống">
+                          <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-lock-locked') }}"></use></svg>
+                        </button>
+                      @endif
+                    </td>
+                  </tr>
+                @empty
+                  <tr>
+                    <td colspan="9" class="text-center text-body-secondary py-5">
+                      <svg class="icon icon-3xl d-block mx-auto mb-2 opacity-25">
+                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-map') }}"></use>
+                      </svg>
+                      Chưa có vị trí nào
+                    </td>
+                  </tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        @if ($locations->hasPages())
+          <div class="card-footer d-flex justify-content-between align-items-center">
+            <small class="text-body-secondary">
+              Hiển thị {{ $locations->firstItem() }}–{{ $locations->lastItem() }}
+              trong tổng số {{ $locations->total() }} vị trí
+            </small>
+            {{ $locations->appends(request()->query())->links('pagination::bootstrap-5') }}
+          </div>
         @endif
-      </form>
-    </div>
-
-    {{-- Ghi chú loại vị trí --}}
-    <div class="card-header border-top-0 py-2 bg-body-tertiary">
-      <div class="d-flex flex-wrap gap-2 small">
-        <span class="text-body-secondary me-1">Loại vị trí:</span>
-        @foreach (\App\Models\Location::typeLabels() as $val => $label)
-          @php $color = \App\Models\Location::typeColors()[$val]; @endphp
-          <span class="badge bg-{{ $color }}-subtle text-{{ $color }} border border-{{ $color }}-subtle">
-            {{ $label }}
-          </span>
-        @endforeach
       </div>
     </div>
-
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th class="text-center" style="width:55px">#</th>
-              <th style="width:130px">Mã vị trí</th>
-              <th>Tên vị trí</th>
-              <th style="width:150px">Vị trí cha</th>
-              <th class="text-center" style="width:140px">Loại</th>
-              <th style="width:120px">Barcode</th>
-              <th class="text-end" style="width:120px">Giới hạn tồn</th>
-              <th class="text-center" style="width:120px">Trạng thái</th>
-              <th class="text-center" style="width:110px">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            @forelse ($locations as $index => $loc)
-              <tr class="{{ $loc->isVirtual() ? 'table-light' : '' }}">
-                <td class="text-center text-body-secondary">
-                  {{ ($locations->currentPage() - 1) * $locations->perPage() + $index + 1 }}
-                </td>
-                <td>
-                  <code class="fw-medium text-{{ $loc->type_color }}">{{ $loc->code }}</code>
-                </td>
-                <td>
-                  @if ($loc->parent)
-                    <span class="text-body-secondary me-1" style="font-size:11px">
-                      <svg class="icon icon-sm"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-level-down') }}"></use></svg>
-                    </span>
-                  @endif
-                  <span class="fw-medium">{{ $loc->name }}</span>
-                  @if ($loc->hasChildren())
-                    <span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size:10px">Có con</span>
-                  @endif
-                  @if ($loc->isVirtual())
-                    <span class="badge bg-body-secondary text-body-secondary border ms-1" style="font-size:10px">Hệ thống</span>
-                  @endif
-                </td>
-                <td class="small">
-                  @if ($loc->parent)
-                    <span class="badge bg-body-secondary text-body border">{{ $loc->parent->code }}</span>
-                  @else
-                    <span class="text-body-secondary">— Gốc</span>
-                  @endif
-                </td>
-                <td class="text-center">
-                  <span class="badge bg-{{ $loc->type_color }}-subtle text-{{ $loc->type_color }} border border-{{ $loc->type_color }}-subtle">
-                    {{ $loc->type_label }}
-                  </span>
-                </td>
-                <td class="small text-body-secondary font-monospace">
-                  {{ $loc->barcode ?? '—' }}
-                </td>
-                <td class="text-end small">
-                  {{ $loc->capacity_limit ? number_format($loc->capacity_limit, 0) : '—' }}
-                </td>
-                <td class="text-center">
-                  @if ($loc->status == 1)
-                    <span class="badge bg-success-subtle text-success border border-success-subtle">Hoạt động</span>
-                  @else
-                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Ngừng</span>
-                  @endif
-                </td>
-                <td class="text-center">
-                  <button class="btn btn-sm btn-outline-primary me-1"
-                          onclick="openForm({{ $loc->id }})"
-                          title="Chỉnh sửa">
-                    <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-pencil') }}"></use></svg>
-                  </button>
-                  @if (!$loc->isVirtual() && !in_array($loc->code, ['WH']))
-                    <button class="btn btn-sm btn-outline-danger"
-                            onclick="confirmDelete({{ $loc->id }}, '{{ addslashes($loc->name) }}')"
-                            title="Xóa">
-                      <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}"></use></svg>
-                    </button>
-                  @else
-                    <button class="btn btn-sm btn-outline-secondary" disabled title="Vị trí hệ thống">
-                      <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-lock-locked') }}"></use></svg>
-                    </button>
-                  @endif
-                </td>
-              </tr>
-            @empty
-              <tr>
-                <td colspan="9" class="text-center text-body-secondary py-5">
-                  <svg class="icon icon-3xl d-block mx-auto mb-2 opacity-25">
-                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-map') }}"></use>
-                  </svg>
-                  Chưa có vị trí nào
-                </td>
-              </tr>
-            @endforelse
-          </tbody>
-        </table>
-      </div>
+    <div class="tab-pane fade" id="tabTree">
+      @include('master.location.partials.tree')
     </div>
-
-    @if ($locations->hasPages())
-      <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-body-secondary">
-          Hiển thị {{ $locations->firstItem() }}–{{ $locations->lastItem() }}
-          trong tổng số {{ $locations->total() }} vị trí
-        </small>
-        {{ $locations->appends(request()->query())->links('pagination::bootstrap-5') }}
-      </div>
-    @endif
   </div>
 
   {{-- OFFCANVAS FORM --}}
@@ -400,5 +423,25 @@
     this.value = this.value.toUpperCase();
     this.setSelectionRange(pos, pos);
   });
+
+  function treeExpandAll() {
+    document.querySelectorAll('#locationTreeRoot .collapse').forEach(el => {
+      coreui.Collapse.getOrCreateInstance(el, { toggle: false }).show();
+    });
+    document.querySelectorAll('#locationTreeRoot .tree-toggle-btn').forEach(btn => {
+      btn.classList.remove('collapsed');
+      btn.setAttribute('aria-expanded', 'true');
+    });
+  }
+ 
+  function treeCollapseAll() {
+    document.querySelectorAll('#locationTreeRoot .collapse').forEach(el => {
+      coreui.Collapse.getOrCreateInstance(el, { toggle: false }).hide();
+    });
+    document.querySelectorAll('#locationTreeRoot .tree-toggle-btn').forEach(btn => {
+      btn.classList.add('collapsed');
+      btn.setAttribute('aria-expanded', 'false');
+    });
+  }
 </script>
 @endpush

@@ -8,14 +8,17 @@ use Illuminate\Http\Request;
 
 class LocationController extends Controller
 {
+    // ─────────────────────────────────────────────────────────────────────
+    //  INDEX — Table view (existing, unchanged logic)
+    // ─────────────────────────────────────────────────────────────────────
     public function index(Request $request)
     {
         $query = Location::with('parent');
 
         if ($search = $request->search) {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('code', 'like', "%{$search}%")
+                $q->where('name',    'like', "%{$search}%")
+                  ->orWhere('code',    'like', "%{$search}%")
                   ->orWhere('barcode', 'like', "%{$search}%");
             });
         }
@@ -34,10 +37,13 @@ class LocationController extends Controller
             $query->where('status', $request->status);
         }
 
-        $locations   = $query->orderBy('type')->orderBy('code')->paginate(20)->withQueryString();
-        $totalCount  = Location::count();
-        $activeCount = Location::where('status', 1)->count();
+        $locations     = $query->orderBy('type')->orderBy('code')->paginate(20)->withQueryString();
+        $totalCount    = Location::count();
+        $activeCount   = Location::where('status', 1)->count();
         $internalCount = Location::where('type', Location::TYPE_INTERNAL)->count();
+
+        // Build tree roots (dùng cho tab Tree view)
+        $treeRoots = $this->buildTree();
 
         // Chỉ lấy vị trí Internal làm parent (vị trí ảo không có con)
         $parentOptions = Location::where('type', Location::TYPE_INTERNAL)
@@ -46,10 +52,39 @@ class LocationController extends Controller
                                  ->get();
 
         return view('master.location.index', compact(
-            'locations', 'totalCount', 'activeCount', 'internalCount', 'parentOptions'
+            'locations', 'totalCount', 'activeCount', 'internalCount',
+            'parentOptions', 'treeRoots'
         ));
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    //  TREE — Build nested collection (roots + eager-loaded children)
+    //  Returns: Collection<Location> (chỉ các node gốc, con đã được load)
+    // ─────────────────────────────────────────────────────────────────────
+    private function buildTree(): \Illuminate\Support\Collection
+    {
+        // Eager-load toàn bộ cây đệ quy (children.children.children...)
+        $all = Location::with('children')->orderBy('type')->orderBy('code')->get();
+
+        // Chỉ giữ lại các node gốc (parent_id = null)
+        return $all->whereNull('parent_id')->values();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  BARCODE — In nhãn barcode cho một vị trí
+    //  Route: GET /master/location/{location}/barcode
+    //  Name:  master.location.barcode
+    // ─────────────────────────────────────────────────────────────────────
+    public function barcode(Location $location)
+    {
+        $location->load('parent');
+
+        return view('master.location.barcode', compact('location'));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  STORE
+    // ─────────────────────────────────────────────────────────────────────
     public function store(Request $request)
     {
         $request->validate([
@@ -62,7 +97,6 @@ class LocationController extends Controller
             'status'         => 'required|in:0,1',
         ], $this->messages());
 
-        // Vị trí ảo không được có parent
         if ($request->type > 1 && $request->parent_id) {
             return redirect()->route('master.location.index')
                 ->with('error', 'Vị trí ảo (Virtual) không thể có vị trí cha.');
@@ -82,6 +116,9 @@ class LocationController extends Controller
             ->with('success', "Đã thêm vị trí \"{$request->name}\" thành công.");
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    //  UPDATE
+    // ─────────────────────────────────────────────────────────────────────
     public function update(Request $request, Location $location)
     {
         $request->validate([
@@ -94,7 +131,6 @@ class LocationController extends Controller
             'status'         => 'required|in:0,1',
         ], $this->messages());
 
-        // Tránh circular reference
         if ($request->parent_id) {
             $descendantIds = $location->getDescendantIds();
             if ($request->parent_id == $location->id || in_array($request->parent_id, $descendantIds)) {
@@ -117,6 +153,9 @@ class LocationController extends Controller
             ->with('success', "Đã cập nhật vị trí \"{$location->name}\" thành công.");
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    //  DESTROY
+    // ─────────────────────────────────────────────────────────────────────
     public function destroy(Location $location)
     {
         if ($location->hasChildren()) {
@@ -129,7 +168,6 @@ class LocationController extends Controller
                 ->with('error', "Không thể xóa \"{$location->name}\" vì đang có tồn kho.");
         }
 
-        // Không cho xóa 5 vị trí ảo hệ thống
         $systemCodes = ['VIRTUAL-SUP', 'VIRTUAL-CUS', 'VIRTUAL-SCR', 'VIRTUAL-QUA', 'WH'];
         if (in_array($location->code, $systemCodes)) {
             return redirect()->route('master.location.index')
@@ -143,6 +181,7 @@ class LocationController extends Controller
             ->with('success', "Đã xóa vị trí \"{$name}\" thành công.");
     }
 
+    // ─────────────────────────────────────────────────────────────────────
     private function messages(): array
     {
         return [
