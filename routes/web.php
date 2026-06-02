@@ -121,7 +121,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'update'  => 'putaway_rule.update',
                 'destroy' => 'putaway_rule.destroy',
             ]);
- 
+
         // Reorder Rules — quy tắc cảnh báo / tái đặt hàng
         Route::resource('reorder_rule', ReorderRuleController::class)
             ->only(['index', 'store', 'update', 'destroy'])
@@ -140,7 +140,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/export/excel', [ReportController::class, 'exportExcel'])->name('export.excel');
         Route::get('/export/pdf',   [ReportController::class, 'exportPdf'])->name('export.pdf');
     });
-    
+
     // ── NHẬT KÝ HỆ THỐNG ──────────────────────────────────────────────
     Route::prefix('activity-log')->name('activity-log.')->group(function () {
         Route::get('/',        [ActivityLogController::class, 'index'])->name('index');
@@ -148,10 +148,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     Route::resource('receipts', StockReceiptController::class);
+    Route::post('receipts/{receipt}/submit',  [StockReceiptController::class, 'submit'])->name('receipts.submit');
+    Route::post('receipts/{receipt}/approve', [StockReceiptController::class, 'approve'])->name('receipts.approve');
     Route::post('receipts/{receipt}/confirm', [StockReceiptController::class, 'confirm'])->name('receipts.confirm');
     Route::post('receipts/{receipt}/cancel',  [StockReceiptController::class, 'cancel'])->name('receipts.cancel');
+    Route::get('receipts/suggest-putaway',    [StockReceiptController::class, 'suggestPutaway'])->name('receipts.suggest-putaway');
 
     Route::resource('issues', StockIssueController::class);
+    Route::post('issues/{issue}/submit',  [StockIssueController::class, 'submit'])->name('issues.submit');
+    Route::post('issues/{issue}/approve', [StockIssueController::class, 'approve'])->name('issues.approve');
     Route::post('issues/{issue}/confirm', [StockIssueController::class, 'confirm'])->name('issues.confirm');
     Route::post('issues/{issue}/cancel',  [StockIssueController::class, 'cancel'])->name('issues.cancel');
 
@@ -167,8 +172,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/ledger', [InventoryController::class, 'ledger'])->name('ledger');
         Route::get('/locations', [InventoryController::class, 'locations'])->name('locations');
     });
-    
-    
+
+
 });
 
 Route::middleware('auth')->group(function () {

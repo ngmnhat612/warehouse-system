@@ -8,22 +8,23 @@ use App\Models\Product;
 use App\Models\Stock;
 use App\Models\StockIssue;
 use App\Models\StockIssueDetail;
-use App\Models\StockLedger;
 use App\Models\User;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class StockIssueController extends Controller
 {
+    public function __construct(private StockService $stockService) {}
+
     // ──────────────────────────────────────────────────────────────────────────
     // DANH SÁCH
     // ──────────────────────────────────────────────────────────────────────────
 
     public function index(Request $request)
     {
-        $query = StockIssue::with(['requester', 'creator'])
-            ->withCount('details');
+        $query = StockIssue::with(['requester', 'creator'])->withCount('details');
 
         if ($search = $request->search) {
             $query->where(function ($q) use ($search) {
@@ -31,22 +32,10 @@ class StockIssueController extends Controller
                   ->orWhere('reference_no', 'like', "%{$search}%");
             });
         }
-
-        if ($request->issue_type) {
-            $query->where('issue_type', $request->issue_type);
-        }
-
-        if ($request->status !== null && $request->status !== '') {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->date_from) {
-            $query->where('issue_date', '>=', $request->date_from);
-        }
-
-        if ($request->date_to) {
-            $query->where('issue_date', '<=', $request->date_to);
-        }
+        if ($request->issue_type)    $query->where('issue_type', $request->issue_type);
+        if ($request->status !== null && $request->status !== '') $query->where('status', $request->status);
+        if ($request->date_from)     $query->where('issue_date', '>=', $request->date_from);
+        if ($request->date_to)       $query->where('issue_date', '<=', $request->date_to);
 
         $issues         = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
         $totalCount     = StockIssue::count();
@@ -66,10 +55,9 @@ class StockIssueController extends Controller
     public function create()
     {
         $products  = Product::with('uom')->where('status', 1)->orderBy('code')->get();
-        $locations = Location::orderBy('code')->get();
+        $locations = Location::where('type', 1)->orderBy('code')->get();
         $users     = User::orderBy('name')->get();
 
-        // Lots nhóm theo product_id để dùng trong JS
         $lots = Lot::where('status', Lot::STATUS_ACTIVE)
             ->select('id', 'product_id', 'lot_number', 'expiry_date')
             ->orderBy('lot_number')
@@ -80,7 +68,7 @@ class StockIssueController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // LƯU PHIẾU MỚI
+    // LƯU PHIẾU MỚI (→ DRAFT)
     // ──────────────────────────────────────────────────────────────────────────
 
     public function store(Request $request)
@@ -99,7 +87,7 @@ class StockIssueController extends Controller
                 'reference_no'         => $request->reference_no ?: null,
                 'issue_date'           => $request->issue_date,
                 'expected_return_date' => $request->expected_return_date ?: null,
-                'status'               => 1, // Draft
+                'status'               => 1, // DRAFT
                 'note'                 => $request->note ?: null,
                 'created_by'           => Auth::id(),
             ]);
@@ -108,7 +96,6 @@ class StockIssueController extends Controller
         });
 
         $action = $request->input('action');
-
         return $action === 'save_and_new'
             ? redirect()->route('issues.create')->with('success', 'Đã tạo phiếu xuất thành công.')
             : redirect()->route('issues.index')->with('success', 'Đã tạo phiếu xuất thành công.');
@@ -121,16 +108,32 @@ class StockIssueController extends Controller
     public function show(StockIssue $issue)
     {
         $issue->load([
-            'requester',
-            'creator',
-            'confirmer',
+            'requester', 'creator', 'confirmer',
             'details.product.uom',
             'details.location',
             'details.lot',
             'details.uom',
         ]);
 
-        return view('issues.show', compact('issue'));
+        // Gợi ý Lot/Serial theo FIFO/FEFO để hiện trong modal (chỉ khi chưa hoàn thành)
+        $suggestions = collect();
+        if (in_array($issue->status, [1, 2, 3])) {
+            foreach ($issue->details as $detail) {
+                try {
+                    $strategy = $detail->product?->stock_rotation === 2 ? 'FEFO' : 'FIFO';
+                    $suggest  = $this->stockService->suggestStockForIssue(
+                        $detail->product_id,
+                        $detail->quantity,
+                        $strategy
+                    );
+                    $suggestions[$detail->id] = $suggest;
+                } catch (\Exception $e) {
+                    $suggestions[$detail->id] = collect();
+                }
+            }
+        }
+
+        return view('issues.show', compact('issue', 'suggestions'));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -146,14 +149,11 @@ class StockIssueController extends Controller
 
         $issue->load(['details.product', 'details.location', 'details.lot', 'details.uom']);
         $products  = Product::with('uom')->where('status', 1)->orderBy('code')->get();
-        $locations = Location::orderBy('code')->get();
+        $locations = Location::where('type', 1)->orderBy('code')->get();
         $users     = User::orderBy('name')->get();
-
-        $lots = Lot::where('status', Lot::STATUS_ACTIVE)
+        $lots      = Lot::where('status', Lot::STATUS_ACTIVE)
             ->select('id', 'product_id', 'lot_number', 'expiry_date')
-            ->orderBy('lot_number')
-            ->get()
-            ->groupBy('product_id');
+            ->orderBy('lot_number')->get()->groupBy('product_id');
 
         return view('issues.form', compact('issue', 'products', 'locations', 'users', 'lots'));
     }
@@ -201,7 +201,6 @@ class StockIssueController extends Controller
         }
 
         $code = $issue->code;
-
         DB::transaction(function () use ($issue) {
             $issue->details()->delete();
             $issue->delete();
@@ -212,83 +211,141 @@ class StockIssueController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // DUYỆT PHIẾU → Completed & trừ tồn kho
+    // CHUYỂN TRẠNG THÁI: DRAFT → PENDING (Gửi duyệt)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function submit(StockIssue $issue)
+    {
+        if ($issue->status !== 1) {
+            return redirect()->route('issues.show', $issue)
+                ->with('error', 'Chỉ có thể gửi duyệt phiếu đang ở trạng thái Draft.');
+        }
+
+        $issue->update(['status' => 2]); // PENDING
+
+        return redirect()->route('issues.show', $issue)
+            ->with('success', "Phiếu {$issue->code} đã được gửi duyệt.");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // CHUYỂN TRẠNG THÁI: PENDING → APPROVED (Duyệt & giữ hàng)
+    // Gọi StockService::reserve() để khóa available_qty
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function approve(StockIssue $issue)
+    {
+        if ($issue->status !== 2) {
+            return redirect()->route('issues.show', $issue)
+                ->with('error', 'Chỉ có thể duyệt phiếu đang ở trạng thái Chờ duyệt.');
+        }
+
+        $issue->load('details.product');
+
+        try {
+            DB::transaction(function () use ($issue) {
+                foreach ($issue->details as $detail) {
+                    if ($detail->quantity <= 0) continue;
+
+                    $strategy = $detail->product?->stock_rotation === 2 ? 'FEFO' : 'FIFO';
+
+                    // Gợi ý và lấy danh sách stock lines để reserve
+                    $suggestions = $this->stockService->suggestStockForIssue(
+                        $detail->product_id,
+                        $detail->quantity,
+                        $strategy
+                    );
+
+                    foreach ($suggestions as $s) {
+                        $this->stockService->reserve([
+                            'product_id'       => $detail->product_id,
+                            'location_id'      => $s['location_id'],
+                            'quantity'         => $s['qty_suggest'],
+                            'lot_id'           => $s['lot_id'],
+                            'serial_id'        => $s['serial_id'],
+                            'transaction_type' => StockService::TYPE_ISSUE,
+                            'reference_id'     => $issue->id,
+                            'reference_type'   => 'stock_issue',
+                            'reference_code'   => $issue->code,
+                        ]);
+                    }
+                }
+
+                $issue->update([
+                    'status'       => 3, // APPROVED
+                    'confirmed_by' => Auth::id(),
+                ]);
+            });
+        } catch (\Exception $e) {
+            return redirect()->route('issues.show', $issue)
+                ->with('error', 'Không thể duyệt: ' . $e->getMessage());
+        }
+
+        return redirect()->route('issues.show', $issue)
+            ->with('success', "Phiếu {$issue->code} đã được duyệt. Hàng đã được giữ chỗ.");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // CHUYỂN TRẠNG THÁI: APPROVED → COMPLETED (Xuất hàng thực tế)
+    // Gọi StockService::release() rồi decrease() cho từng dòng
     // ──────────────────────────────────────────────────────────────────────────
 
     public function confirm(StockIssue $issue)
     {
-        if (!in_array($issue->status, [1, 2])) {
+        if ($issue->status !== 3) {
             return redirect()->route('issues.show', $issue)
-                ->with('error', 'Phiếu không ở trạng thái có thể duyệt.');
+                ->with('error', 'Chỉ có thể hoàn tất phiếu đã ở trạng thái Đã duyệt.');
         }
 
-        // Kiểm tra tồn kho trước khi duyệt
         $issue->load('details.product');
-        $errors = $this->checkStockSufficiency($issue);
 
-        if (!empty($errors)) {
+        try {
+            DB::transaction(function () use ($issue) {
+                foreach ($issue->details as $detail) {
+                    if ($detail->quantity <= 0) continue;
+
+                    $strategy    = $detail->product?->stock_rotation === 2 ? 'FEFO' : 'FIFO';
+                    $suggestions = $this->stockService->suggestStockForIssue(
+                        $detail->product_id,
+                        $detail->quantity,
+                        $strategy
+                    );
+
+                    foreach ($suggestions as $s) {
+                        $baseParams = [
+                            'product_id'       => $detail->product_id,
+                            'location_id'      => $s['location_id'],
+                            'quantity'         => $s['qty_suggest'],
+                            'lot_id'           => $s['lot_id'],
+                            'serial_id'        => $s['serial_id'],
+                            'transaction_type' => StockService::TYPE_ISSUE,
+                            'reference_id'     => $issue->id,
+                            'reference_type'   => 'stock_issue',
+                            'reference_code'   => $issue->code,
+                            'note'             => "Xuất kho từ phiếu {$issue->code}",
+                            'created_by'       => Auth::id(),
+                        ];
+
+                        // 1. Giải phóng reserve trước
+                        $this->stockService->release($baseParams);
+
+                        // 2. Trừ tồn kho thực tế
+                        $this->stockService->decrease($baseParams);
+                    }
+                }
+
+                $issue->update(['status' => 4]); // COMPLETED
+            });
+        } catch (\Exception $e) {
             return redirect()->route('issues.show', $issue)
-                ->with('error', 'Không đủ tồn kho: ' . implode('; ', $errors));
+                ->with('error', 'Lỗi khi hoàn tất xuất kho: ' . $e->getMessage());
         }
-
-        DB::transaction(function () use ($issue) {
-            foreach ($issue->details as $detail) {
-                $qty = $detail->quantity;
-
-                if ($qty <= 0) {
-                    continue;
-                }
-
-                // Tìm bản ghi stock phù hợp (ưu tiên đúng lot, đúng location)
-                $stock = Stock::where('product_id', $detail->product_id)
-                    ->where('location_id', $detail->location_id)
-                    ->when($detail->lot_id, fn($q) => $q->where('lot_id', $detail->lot_id))
-                    ->first();
-
-                if (!$stock) {
-                    // Fallback: bất kỳ stock nào của sản phẩm có đủ hàng
-                    $stock = Stock::where('product_id', $detail->product_id)
-                        ->where('quantity', '>=', $qty)
-                        ->orderBy('id')
-                        ->firstOrFail();
-                }
-
-                $stock->quantity   -= $qty;
-                $stock->updated_at  = now();
-                $stock->save();
-
-                // Ghi stock_ledger
-                StockLedger::create([
-                    'product_id'       => $detail->product_id,
-                    'stock_id'         => $stock->id,
-                    'lot_id'           => $detail->lot_id,
-                    'serial_id'        => $detail->serial_id ?? null,
-                    'location_id'      => $detail->location_id,
-                    'transaction_type' => 'ISSUE',
-                    'reference_id'     => $issue->id,
-                    'reference_type'   => 'stock_issue',
-                    'reference_code'   => $issue->code,
-                    'direction'        => 2, // Out
-                    'quantity'         => $qty,
-                    'balance_after'    => $stock->quantity,
-                    'created_by'       => Auth::id(),
-                    'note'             => "Xuất kho từ phiếu {$issue->code}",
-                    'transaction_date' => now(),
-                ]);
-            }
-
-            $issue->update([
-                'status'       => 4, // Completed
-                'confirmed_by' => Auth::id(),
-            ]);
-        });
 
         return redirect()->route('issues.show', $issue)
-            ->with('success', "Phiếu {$issue->code} đã được duyệt và trừ tồn kho.");
+            ->with('success', "Phiếu {$issue->code} hoàn tất. Tồn kho đã được trừ.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // HỦY PHIẾU
+    // HỦY PHIẾU — Nếu đã APPROVED phải giải phóng reserved_qty
     // ──────────────────────────────────────────────────────────────────────────
 
     public function cancel(StockIssue $issue)
@@ -303,10 +360,52 @@ class StockIssueController extends Controller
                 ->with('error', 'Phiếu đã được hủy trước đó.');
         }
 
-        $issue->update(['status' => 5]);
+        try {
+            DB::transaction(function () use ($issue) {
+                // Nếu đã APPROVED → phải release reserved_qty đã giữ
+                if ($issue->status === 3) {
+                    $issue->load('details.product');
+
+                    foreach ($issue->details as $detail) {
+                        if ($detail->quantity <= 0) continue;
+
+                        $strategy    = $detail->product?->stock_rotation === 2 ? 'FEFO' : 'FIFO';
+
+                        try {
+                            $suggestions = $this->stockService->suggestStockForIssue(
+                                $detail->product_id,
+                                $detail->quantity,
+                                $strategy
+                            );
+
+                            foreach ($suggestions as $s) {
+                                $this->stockService->release([
+                                    'product_id'       => $detail->product_id,
+                                    'location_id'      => $s['location_id'],
+                                    'quantity'         => $s['qty_suggest'],
+                                    'lot_id'           => $s['lot_id'],
+                                    'serial_id'        => $s['serial_id'],
+                                    'transaction_type' => StockService::TYPE_ISSUE,
+                                    'reference_id'     => $issue->id,
+                                    'reference_type'   => 'stock_issue',
+                                    'reference_code'   => $issue->code,
+                                ]);
+                            }
+                        } catch (\Exception $e) {
+                            // Bỏ qua lỗi release nếu stock line không còn — vẫn hủy phiếu
+                        }
+                    }
+                }
+
+                $issue->update(['status' => 5]); // CANCELLED
+            });
+        } catch (\Exception $e) {
+            return redirect()->route('issues.show', $issue)
+                ->with('error', 'Lỗi khi hủy phiếu: ' . $e->getMessage());
+        }
 
         return redirect()->route('issues.show', $issue)
-            ->with('success', "Đã hủy phiếu {$issue->code}.");
+            ->with('success', "Đã hủy phiếu {$issue->code}. Hàng đã được trả về trạng thái sẵn sàng.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -320,27 +419,25 @@ class StockIssueController extends Controller
             : 'nullable|string|max:50|unique:stock_issues,code';
 
         $request->validate([
-            'code'                        => $codeRule,
-            'issue_type'                  => 'required|in:1,2,3,4',
-            'requester_id'                => 'nullable|exists:users,id',
-            'reference_no'                => 'nullable|string|max:100',
-            'issue_date'                  => 'required|date',
-            'expected_return_date'        => 'nullable|date|after_or_equal:issue_date',
-            'note'                        => 'nullable|string|max:1000',
-            'details'                     => 'required|array|min:1',
-            'details.*.product_id'        => 'required|exists:products,id',
-            'details.*.uom_id'            => 'required|exists:uoms,id',
-            'details.*.quantity'          => 'required|numeric|min:0.001',
-            'details.*.location_id'       => 'required|exists:locations,id',
-            'details.*.lot_id'            => 'nullable|exists:lots,id',
-            'details.*.note'              => 'nullable|string|max:200',
+            'code'                            => $codeRule,
+            'issue_type'                      => 'required|in:1,2,3,4',
+            'requester_id'                    => 'nullable|exists:users,id',
+            'reference_no'                    => 'nullable|string|max:100',
+            'issue_date'                      => 'required|date',
+            'expected_return_date'            => 'nullable|date|after_or_equal:issue_date',
+            'note'                            => 'nullable|string|max:1000',
+            'details'                         => 'required|array|min:1',
+            'details.*.product_id'            => 'required|exists:products,id',
+            'details.*.uom_id'                => 'required|exists:uoms,id',
+            'details.*.quantity'              => 'required|numeric|min:0.001',
+            'details.*.location_id'           => 'required|exists:locations,id',
+            'details.*.lot_id'                => 'nullable|exists:lots,id',
+            'details.*.note'                  => 'nullable|string|max:200',
         ], [
             'code.unique'                     => 'Mã phiếu đã tồn tại.',
             'issue_type.required'             => 'Vui lòng chọn loại xuất.',
             'issue_date.required'             => 'Vui lòng chọn ngày xuất.',
-            'expected_return_date.after_or_equal' => 'Hạn trả phải sau hoặc bằng ngày xuất.',
             'details.required'                => 'Phiếu xuất phải có ít nhất một hàng hóa.',
-            'details.min'                     => 'Phiếu xuất phải có ít nhất một hàng hóa.',
             'details.*.product_id.required'   => 'Vui lòng chọn hàng hóa.',
             'details.*.uom_id.required'       => 'Vui lòng chọn đơn vị tính.',
             'details.*.quantity.required'     => 'Vui lòng nhập số lượng.',
@@ -349,15 +446,10 @@ class StockIssueController extends Controller
         ]);
     }
 
-    /**
-     * Lưu các dòng chi tiết phiếu xuất.
-     */
     private function saveDetails(StockIssue $issue, array $details): void
     {
         foreach ($details as $row) {
-            if (empty($row['product_id']) || empty($row['quantity'])) {
-                continue;
-            }
+            if (empty($row['product_id']) || empty($row['quantity'])) continue;
 
             StockIssueDetail::create([
                 'stock_issue_id' => $issue->id,
@@ -372,55 +464,13 @@ class StockIssueController extends Controller
         }
     }
 
-    /**
-     * Kiểm tra tồn kho đủ không trước khi duyệt.
-     * Trả về mảng thông báo lỗi (rỗng nếu đủ hàng).
-     */
-    private function checkStockSufficiency(StockIssue $issue): array
-    {
-        $errors = [];
-
-        // Gom nhóm SL cần xuất theo product_id + location_id + lot_id
-        $needed = [];
-        foreach ($issue->details as $detail) {
-            $key = "{$detail->product_id}_{$detail->location_id}_{$detail->lot_id}";
-            $needed[$key] = ($needed[$key] ?? 0) + $detail->quantity;
-        }
-
-        foreach ($needed as $key => $qty) {
-            [$productId, $locationId, $lotId] = explode('_', $key);
-
-            $available = Stock::where('product_id', $productId)
-                ->where('location_id', $locationId)
-                ->when($lotId, fn($q) => $q->where('lot_id', $lotId))
-                ->sum('quantity');
-
-            if ($available < $qty) {
-                $product = Product::find($productId);
-                $errors[] = sprintf(
-                    '%s: cần %.3f, tồn kho %.3f',
-                    $product?->name ?? "ID {$productId}",
-                    $qty,
-                    $available
-                );
-            }
-        }
-
-        return $errors;
-    }
-
-    /**
-     * Sinh mã phiếu theo format XK-YYYYMM-XXXX.
-     */
     private function generateCode(): string
     {
         $prefix = 'XK-' . now()->format('Ym') . '-';
         $last   = StockIssue::where('code', 'like', $prefix . '%')
                       ->orderByDesc('code')
                       ->value('code');
-
         $seq = $last ? ((int) substr($last, -4)) + 1 : 1;
-
         return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
     }
 }
