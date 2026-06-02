@@ -43,7 +43,7 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
     <div class="d-flex gap-2 flex-wrap">
 
         {{-- DRAFT: Sửa / Gửi duyệt / Xóa --}}
-        @if($receipt->status === 1)
+        @if((int) $receipt->status === 1)
         <a href="{{ route('receipts.edit', $receipt) }}" class="btn btn-outline-secondary">
             <svg class="icon me-1">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-pencil') }}"></use>
@@ -72,7 +72,7 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
         @endif
 
         {{-- PENDING: Duyệt phiếu --}}
-        @if($receipt->status === 2)
+        @if((int) $receipt->status === 2)
         <form method="POST" action="{{ route('receipts.approve', $receipt) }}">
             @csrf
             <button type="submit" class="btn btn-primary">
@@ -85,7 +85,7 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
         @endif
 
         {{-- APPROVED: Hoàn tất nhận hàng --}}
-        @if($receipt->status === 3)
+        @if((int) $receipt->status === 3)
         <button type="button" class="btn btn-success" data-coreui-toggle="modal" data-coreui-target="#confirmModal">
             <svg class="icon me-1">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use>
@@ -95,7 +95,7 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
         @endif
 
         {{-- Hủy phiếu (bất kỳ trạng thái trừ COMPLETED/CANCELLED) --}}
-        @if(!in_array($receipt->status, [4, 5]))
+        @if(!in_array((int) $receipt->status, [4, 5]))
         <form method="POST" action="{{ route('receipts.cancel', $receipt) }}"
             onsubmit="return confirm('Hủy phiếu {{ $receipt->code }}?\nThao tác này không thể khôi phục.')">
             @csrf
@@ -343,7 +343,7 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
 </div>
 
 {{-- MODAL XÁC NHẬN NHẬN HÀNG (chỉ hiện khi APPROVED) --}}
-@if($receipt->status === 3)
+@if((int) $receipt->status === 3)
 <div class="modal fade" id="confirmModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
