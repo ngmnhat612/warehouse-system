@@ -84,7 +84,7 @@
                 <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-search') }}"></use></svg>
               </span>
               <input type="text" class="form-control" name="search"
-                     value="{{ request('search') }}" placeholder="Mã / tên hàng...">
+                     value="{{ request('search') }}" placeholder="Mã / tên hàng / Lot / Serial...">
             </div>
           </div>
 

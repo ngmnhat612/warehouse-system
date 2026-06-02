@@ -6,13 +6,13 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles;  // ← thêm
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles;  // ← thêm HasRoles
+    use HasFactory, Notifiable, HasRoles;
 
-    protected $fillable = ['name', 'email', 'password'];
+    protected $fillable = ['name', 'email', 'password', 'is_active'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -21,6 +21,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
+            'is_active'         => 'boolean',
         ];
     }
 
@@ -31,7 +32,24 @@ class User extends Authenticatable
         return $this->hasOne(Employee::class, 'user_id');
     }
 
+    // ===== SCOPES =====
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', 1);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('is_active', 0);
+    }
+
     // ===== HELPERS =====
+
+    public function isActive(): bool
+    {
+        return (bool) $this->is_active;
+    }
 
     public function isManager(): bool
     {

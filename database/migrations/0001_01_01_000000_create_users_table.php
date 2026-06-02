@@ -35,6 +35,12 @@ return new class extends Migration
             $table->longText('payload');
             $table->integer('last_activity')->index();
         });
+
+        Schema::table('users', function (Blueprint $table) {
+            $table->tinyInteger('is_active')->default(1)->after('email')
+                  ->comment('1=Active (có thể đăng nhập), 0=Pending (chờ admin kích hoạt)');
+        });
+        
     }
 
     /**
@@ -45,5 +51,10 @@ return new class extends Migration
         Schema::dropIfExists('users');
         Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('is_active');
+        });
     }
+    
 };
