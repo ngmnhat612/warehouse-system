@@ -37,7 +37,7 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
         </h4>
         <small class="text-body-secondary">
             Tạo lúc {{ $receipt->created_at?->format('d/m/Y H:i') }}
-            @if($receipt->creator) bởi {{ $receipt->creator->name }} @endif
+            @if($receipt->createdBy) bởi {{ $receipt->createdBy->name }} @endif
         </small>
     </div>
     <div class="d-flex gap-2 flex-wrap">
@@ -211,11 +211,11 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
                     </dd>
 
                     <dt class="col-sm-5 text-body-secondary">Người tạo</dt>
-                    <dd class="col-sm-7">{{ $receipt->creator?->name ?? '—' }}</dd>
+                    <dd class="col-sm-7">{{ $receipt->createdBy?->name ?? '—' }}</dd>
 
-                    @if($receipt->confirmer)
+                    @if($receipt->confirmedBy)
                     <dt class="col-sm-5 text-body-secondary">Người duyệt</dt>
-                    <dd class="col-sm-7">{{ $receipt->confirmer->name }}</dd>
+                    <dd class="col-sm-7">{{ $receipt->confirmedBy->name }}</dd>
                     @endif
 
                     @if($receipt->note)

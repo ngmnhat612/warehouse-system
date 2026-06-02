@@ -25,7 +25,8 @@ class StockReceiptController extends Controller
 
     public function index(Request $request)
     {
-        $query = StockReceipt::with(['supplier', 'creator'])->withCount('details');
+        //UPDATE
+        $query = StockReceipt::with(['supplier', 'createdBy'])->withCount('details');
 
         if ($search = $request->search) {
             $query->where(function ($q) use ($search) {
@@ -116,7 +117,7 @@ class StockReceiptController extends Controller
     public function show(StockReceipt $receipt)
     {
         $receipt->load([
-            'supplier', 'creator', 'confirmer',
+            'supplier', 'createdBy', 'confirmedBy',
             'details.product.uom',
             'details.location',
             'details.lot',
@@ -132,24 +133,36 @@ class StockReceiptController extends Controller
 
     public function edit(StockReceipt $receipt)
     {
-        if ($receipt->status !== 1) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_DRAFT) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Draft.');
         }
 
         $receipt->load(['details.product', 'details.location', 'details.lot', 'details.uom']);
-        $products  = Product::with('uom')->where('status', 1)->orderBy('code')->get();
-        $suppliers = Supplier::orderBy('name')->get();
+
+        $products      = Product::with('uom')->where('status', 1)->orderBy('code')->get();
+        $productsJson  = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'code'   => $p->code,
+            'name'   => $p->name,
+            'uom'    => $p->uom?->name ?? '—',
+            'uom_id' => $p->uom_id,
+            'stock'  => (float) ($p->total_stock ?? 0),
+        ])->values();
+        $suppliers     = Supplier::orderBy('name')->get();
         $locations     = Location::where('type', 1)->orderBy('code')->get();
         $locationsJson = $locations->map(fn($l) => [
             'id'   => $l->id,
             'code' => $l->code,
             'name' => $l->name ?? '',
         ])->values();
-        $uoms      = Uom::orderBy('name')->get();
+        $uoms         = Uom::orderBy('name')->get();
         $putawayRules = DB::table('putaway_rules')->where('status', 1)->get(['product_id', 'category_id', 'location_dest_id']);
 
-        return view('receipts.form', compact('receipt', 'products', 'productsJson', 'suppliers', 'locations', 'locationsJson', 'uoms', 'putawayRules'));
+        return view('receipts.form', compact(
+            'receipt', 'products', 'productsJson', 'suppliers',
+            'locations', 'locationsJson', 'uoms', 'putawayRules'
+        ));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -158,7 +171,7 @@ class StockReceiptController extends Controller
 
     public function update(Request $request, StockReceipt $receipt)
     {
-        if ($receipt->status !== 1) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_DRAFT) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Draft.');
         }
@@ -188,7 +201,7 @@ class StockReceiptController extends Controller
 
     public function destroy(StockReceipt $receipt)
     {
-        if ($receipt->status !== 1) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_DRAFT) {
             return redirect()->route('receipts.index')
                 ->with('error', "Không thể xóa phiếu {$receipt->code} vì không ở trạng thái Draft.");
         }
@@ -209,7 +222,7 @@ class StockReceiptController extends Controller
 
     public function submit(StockReceipt $receipt)
     {
-        if ($receipt->status !== 1) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_DRAFT) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Chỉ có thể gửi duyệt phiếu đang ở trạng thái Draft.');
         }
@@ -231,7 +244,7 @@ class StockReceiptController extends Controller
 
     public function approve(StockReceipt $receipt)
     {
-        if ($receipt->status !== 2) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_PENDING) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Chỉ có thể duyệt phiếu đang ở trạng thái Chờ duyệt.');
         }
@@ -251,7 +264,7 @@ class StockReceiptController extends Controller
 
     public function confirm(StockReceipt $receipt)
     {
-        if ($receipt->status !== 3) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_APPROVED) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Chỉ có thể hoàn tất phiếu đã ở trạng thái Đã duyệt.');
         }
@@ -332,12 +345,12 @@ class StockReceiptController extends Controller
 
     public function cancel(StockReceipt $receipt)
     {
-        if ($receipt->status === 4) {
+        if ((int) $receipt->status === StockReceipt::STATUS_COMPLETED) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Không thể hủy phiếu đã hoàn thành. Vui lòng tạo phiếu điều chỉnh.');
         }
 
-        if ($receipt->status === 5) {
+        if ((int) $receipt->status === StockReceipt::STATUS_CANCELLED) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Phiếu đã được hủy trước đó.');
         }

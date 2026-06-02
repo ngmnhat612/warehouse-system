@@ -53,7 +53,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                         <label class="form-label">Mã phiếu <span class="text-danger">*</span></label>
                         <input type="text" class="form-control text-uppercase @error('code') is-invalid @enderror"
                             name="code" value="{{ old('code', $receipt->code ?? '') }}" placeholder="VD: NK-2024-001"
-                            required maxlength="50" {{ $isEdit ? 'readonly' : '' }}>
+                            maxlength="50" {{ $isEdit ? 'readonly required' : '' }}>
                         @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         @if(!$isEdit)
                         <div class="form-text">Để trống để hệ thống tự sinh mã.</div>
@@ -263,8 +263,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                     </div>
 
                     {{-- Empty state --}}
-                    <div id="emptyDetail" class="text-center text-body-secondary py-5"
-                        style="{{ ($isEdit && $receipt->details->count()) ? 'display:none' : '' }}">
+                    <div id="emptyDetail" class="text-center text-body-secondary py-5">
                         <svg class="icon icon-3xl d-block mx-auto mb-2 opacity-25">
                             <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use>
                         </svg>
@@ -297,11 +296,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
 const PRODUCTS = @json($productsJson);
 const LOCATIONS = @json($locationsJson);
 
-let rowIndex = {
-    {
-        $isEdit ? $receipt - > details - > count() : 0
-    }
-};
+let rowIndex = <?php echo $isEdit ? $receipt->details->count() : 0; ?>;
 
 // ── Template một dòng chi tiết ─────────────────────────────────────
 function rowTemplate(i) {
