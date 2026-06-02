@@ -107,6 +107,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('employee/{employee}/account',         [EmployeeController::class, 'updateAccount'])->name('employee.account.update');
         Route::delete('employee/{employee}/account',      [EmployeeController::class, 'deleteAccount'])->name('employee.account.delete');
 
+        Route::post('employee/user/{user}/activate', [EmployeeController::class, 'activateUser'])
+            ->name('employee.user.activate');
+        
+        Route::delete('employee/user/{user}/reject', [EmployeeController::class, 'rejectUser'])
+            ->name('employee.user.reject');
+
         Route::resource('bom', BomController::class)
             ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
             ->names([
@@ -169,11 +175,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // ── TỒN KHO ───────────────────────────────────────────────────────
     Route::prefix('inventory')->name('inventory.')->group(function () {
-        Route::get('/',       [InventoryController::class, 'index'])->name('index');
-        Route::get('/ledger', [InventoryController::class, 'ledger'])->name('ledger');
-        Route::get('/locations', [InventoryController::class, 'locations'])->name('locations');
+        Route::get('/',              [InventoryController::class, 'index'])->name('index');
+        Route::get('/ledger',        [InventoryController::class, 'ledger'])->name('ledger');
+        Route::get('/ledger/export', [InventoryController::class, 'exportLedger'])->name('ledger.export');
+        Route::get('/locations',     [InventoryController::class, 'locations'])->name('locations');
     });
-    
     
 });
 

@@ -4,14 +4,14 @@
 
 @section('breadcrumb')
   <li class="breadcrumb-item">Danh mục</li>
-  <li class="breadcrumb-item active">Công thức tách/ghép (BOM)</li>
+  <li class="breadcrumb-item active">Công thức BOM</li>
 @endsection
 
 @section('content')
 
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h4 class="mb-0 fw-semibold">Công thức tách/ghép (BOM)</h4>
+      <h4 class="mb-0 fw-semibold">Công thức BOM</h4>
       <small class="text-body-secondary">Quản lý công thức nguyên liệu đầu vào và sản phẩm đầu ra</small>
     </div>
     <a href="{{ route('master.bom.create') }}" class="btn btn-primary">

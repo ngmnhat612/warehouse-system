@@ -68,7 +68,9 @@ class InventoryController extends Controller
             $q = $request->search;
             $query->where(function ($sub) use ($q) {
                 $sub->where('p.name', 'like', "%{$q}%")
-                    ->orWhere('p.code', 'like', "%{$q}%");
+                    ->orWhere('p.code', 'like', "%{$q}%")
+                    ->orWhere('lt.lot_number',    'like', "%{$q}%")
+                    ->orWhere('sr.serial_number', 'like', "%{$q}%");
             });
         }
 
@@ -107,11 +109,11 @@ class InventoryController extends Controller
     // ──────────────────────────────────────────────────────────────────────────
     // LỊCH SỬ GIAO DỊCH (Stock Ledger)
     // ──────────────────────────────────────────────────────────────────────────
-
     public function ledger(Request $request)
     {
         $products  = Product::where('status', 1)->orderBy('name')->get();
         $locations = Location::where('status', 1)->where('type', 1)->orderBy('code')->get();
+        $users     = DB::table('users')->select('id', 'name')->orderBy('name')->get();
 
         $transactionTypes = [
             'RECEIPT'   => 'Nhập kho',
@@ -127,12 +129,12 @@ class InventoryController extends Controller
         $dateTo   = $request->date_to   ?? now()->toDateString();
 
         $query = DB::table('stock_ledger as sl')
-            ->join('products as p',   'sl.product_id',  '=', 'p.id')
-            ->join('locations as l',  'sl.location_id', '=', 'l.id')
-            ->join('uoms as u',       'p.uom_id',       '=', 'u.id')
-            ->leftJoin('lots as lt',  'sl.lot_id',      '=', 'lt.id')
-            ->leftJoin('serials as sr', 'sl.serial_id', '=', 'sr.id')
-            ->leftJoin('users as usr', 'sl.created_by', '=', 'usr.id')
+            ->join('products as p',    'sl.product_id',  '=', 'p.id')
+            ->join('locations as l',   'sl.location_id', '=', 'l.id')
+            ->join('uoms as u',        'p.uom_id',       '=', 'u.id')
+            ->leftJoin('lots as lt',   'sl.lot_id',      '=', 'lt.id')
+            ->leftJoin('serials as sr','sl.serial_id',   '=', 'sr.id')
+            ->leftJoin('users as usr', 'sl.created_by',  '=', 'usr.id')
             ->select(
                 'sl.id',
                 'sl.transaction_type',
@@ -157,40 +159,60 @@ class InventoryController extends Controller
         if ($request->filled('product_id')) {
             $query->where('sl.product_id', $request->product_id);
         }
-
         if ($request->filled('location_id')) {
             $query->where('sl.location_id', $request->location_id);
         }
-
         if ($request->filled('transaction_type')) {
             $query->where('sl.transaction_type', $request->transaction_type);
         }
-
         if ($request->filled('direction')) {
             $query->where('sl.direction', $request->direction);
         }
-
+        if ($request->filled('causer_id')) {
+            $query->where('sl.created_by', $request->causer_id);
+        }
         if ($request->filled('search')) {
             $q = $request->search;
             $query->where(function ($sub) use ($q) {
-                $sub->where('sl.reference_code', 'like', "%{$q}%")
-                    ->orWhere('p.name', 'like', "%{$q}%")
-                    ->orWhere('p.code', 'like', "%{$q}%");
+                $sub->where('sl.reference_code',  'like', "%{$q}%")
+                    ->orWhere('p.name',            'like', "%{$q}%")
+                    ->orWhere('p.code',            'like', "%{$q}%")
+                    ->orWhere('lt.lot_number',     'like', "%{$q}%")
+                    ->orWhere('sr.serial_number',  'like', "%{$q}%");
             });
         }
+
+        // KPI — clone TRƯỚC khi paginate
+        $totalIn  = (clone $query)->where('sl.direction', 1)->sum('sl.quantity');
+        $totalOut = (clone $query)->where('sl.direction', 2)->sum('sl.quantity');
 
         $ledgers = $query->orderByDesc('sl.transaction_date')->orderByDesc('sl.id')
             ->paginate(30)
             ->withQueryString();
 
-        // KPI cho kỳ đã chọn
-        $totalIn  = (clone $query->getQuery())->where('sl.direction', 1)->sum('sl.quantity');
-        $totalOut = (clone $query->getQuery())->where('sl.direction', 2)->sum('sl.quantity');
-
         return view('inventory.ledger', compact(
-            'ledgers', 'products', 'locations', 'transactionTypes',
+            'ledgers', 'products', 'locations', 'users', 'transactionTypes',
             'dateFrom', 'dateTo', 'totalIn', 'totalOut'
         ));
+    }
+
+    public function exportLedger(Request $request)
+    {
+        $filters = $request->only([
+            'date_from', 'date_to',
+            'product_id', 'location_id',
+            'transaction_type', 'direction',
+            'causer_id', 'search',
+        ]);
+
+        $dateFrom = $filters['date_from'] ?? now()->startOfMonth()->toDateString();
+        $dateTo   = $filters['date_to']   ?? now()->toDateString();
+        $filename = "the-kho_{$dateFrom}_{$dateTo}.xlsx";
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\StockLedgerExport($filters),
+            $filename
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────────

@@ -16,10 +16,17 @@
       <h4 class="mb-0 fw-semibold">Lịch sử giao dịch</h4>
       <small class="text-body-secondary">Nhật ký kho — mọi biến động tồn kho</small>
     </div>
-    <a href="{{ route('inventory.index') }}" class="btn btn-outline-secondary">
-      <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-storage') }}"></use></svg>
-      Xem tồn kho hiện tại
-    </a>
+    <div class="d-flex gap-2">
+      <a href="{{ route('inventory.index') }}" class="btn btn-outline-secondary">
+        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-storage') }}"></use></svg>
+        Tồn kho hiện tại
+      </a>
+      <a href="{{ route('inventory.ledger.export', request()->query()) }}"
+         class="btn btn-outline-success">
+        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-spreadsheet') }}"></use></svg>
+        Xuất Excel
+      </a>
+    </div>
   </div>
 
   {{-- CARDS KPI --}}
@@ -51,19 +58,17 @@
   {{-- BỘ LỌC --}}
   <div class="card mb-3">
     <div class="card-body py-2">
-      <form method="GET" action="{{ route('inventory.ledger') }}">
+      <form method="GET" action="{{ route('inventory.ledger') }}" id="ledgerFilterForm">
         <div class="row g-2 align-items-end">
 
           <div class="col-sm-6 col-lg-2">
             <label class="form-label mb-1 small fw-medium">Từ ngày</label>
-            <input type="date" class="form-control" name="date_from"
-                   value="{{ $dateFrom }}">
+            <input type="date" class="form-control" name="date_from" value="{{ $dateFrom }}">
           </div>
 
           <div class="col-sm-6 col-lg-2">
             <label class="form-label mb-1 small fw-medium">Đến ngày</label>
-            <input type="date" class="form-control" name="date_to"
-                   value="{{ $dateTo }}">
+            <input type="date" class="form-control" name="date_to" value="{{ $dateTo }}">
           </div>
 
           <div class="col-sm-6 col-lg-2">
@@ -93,7 +98,7 @@
           <div class="col-sm-6 col-lg-2">
             <label class="form-label mb-1 small fw-medium">Loại GD</label>
             <select class="form-select" name="transaction_type">
-              <option value="">Tất cả loại</option>
+              <option value="">Tất cả</option>
               @foreach ($transactionTypes ?? [] as $key => $label)
                 <option value="{{ $key }}" {{ request('transaction_type') == $key ? 'selected' : '' }}>
                   {{ $label }}
@@ -112,13 +117,26 @@
           </div>
 
           <div class="col-sm-6 col-lg-2">
+            <label class="form-label mb-1 small fw-medium">Người thực hiện</label>
+            <select class="form-select" name="causer_id">
+              <option value="">Tất cả</option>
+              @foreach ($users ?? [] as $u)
+                <option value="{{ $u->id }}" {{ request('causer_id') == $u->id ? 'selected' : '' }}>
+                  {{ $u->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="col-sm-6 col-lg-3">
             <label class="form-label mb-1 small fw-medium">Tìm kiếm</label>
             <div class="input-group">
               <span class="input-group-text">
                 <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-search') }}"></use></svg>
               </span>
               <input type="text" class="form-control" name="search"
-                     value="{{ request('search') }}" placeholder="Mã phiếu...">
+                     value="{{ request('search') }}"
+                     placeholder="Mã phiếu / tên hàng / Lot / Serial...">
             </div>
           </div>
 
@@ -126,8 +144,9 @@
             <button type="submit" class="btn btn-primary flex-fill">
               <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-filter') }}"></use></svg>
             </button>
-            @if(request()->hasAny(['product_id','location_id','transaction_type','direction','search']))
-              <a href="{{ route('inventory.ledger') }}" class="btn btn-outline-danger" title="Xóa lọc">
+            @if(request()->hasAny(['product_id','location_id','transaction_type','direction','causer_id','search']))
+              <a href="{{ route('inventory.ledger', ['date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                 class="btn btn-outline-danger" title="Xóa lọc">
                 <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-x') }}"></use></svg>
               </a>
             @endif
@@ -135,18 +154,23 @@
 
         </div>
 
-        {{-- Nút tắt nhanh kỳ --}}
+        {{-- Shortcut kỳ --}}
         <div class="d-flex gap-2 mt-2">
-          <a href="{{ route('inventory.ledger', ['date_from' => now()->toDateString(), 'date_to' => now()->toDateString()]) }}"
-             class="btn btn-sm btn-outline-secondary {{ ($dateFrom == now()->toDateString() && $dateTo == now()->toDateString()) ? 'active' : '' }}">
+          @php
+            $todayStr = now()->toDateString();
+            $weekStr  = now()->startOfWeek()->toDateString();
+            $monthStr = now()->startOfMonth()->toDateString();
+          @endphp
+          <a href="{{ route('inventory.ledger', ['date_from' => $todayStr, 'date_to' => $todayStr]) }}"
+             class="btn btn-sm btn-outline-secondary {{ $dateFrom == $todayStr && $dateTo == $todayStr ? 'active' : '' }}">
             Hôm nay
           </a>
-          <a href="{{ route('inventory.ledger', ['date_from' => now()->startOfWeek()->toDateString(), 'date_to' => now()->toDateString()]) }}"
-             class="btn btn-sm btn-outline-secondary">
+          <a href="{{ route('inventory.ledger', ['date_from' => $weekStr, 'date_to' => $todayStr]) }}"
+             class="btn btn-sm btn-outline-secondary {{ $dateFrom == $weekStr && $dateTo == $todayStr ? 'active' : '' }}">
             Tuần này
           </a>
-          <a href="{{ route('inventory.ledger', ['date_from' => now()->startOfMonth()->toDateString(), 'date_to' => now()->toDateString()]) }}"
-             class="btn btn-sm btn-outline-secondary">
+          <a href="{{ route('inventory.ledger', ['date_from' => $monthStr, 'date_to' => $todayStr]) }}"
+             class="btn btn-sm btn-outline-secondary {{ $dateFrom == $monthStr && $dateTo == $todayStr ? 'active' : '' }}">
             Tháng này
           </a>
         </div>
@@ -155,7 +179,7 @@
     </div>
   </div>
 
-  {{-- BẢNG LỊCH SỬ --}}
+  {{-- BẢNG --}}
   <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
       <span class="fw-semibold">Nhật ký kho</span>
@@ -169,7 +193,7 @@
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th>Thời gian</th>
+              <th class="text-nowrap">Thời gian</th>
               <th style="width:120px">Loại GD</th>
               <th style="width:130px">Mã phiếu</th>
               <th style="min-width:180px">Hàng hóa</th>
@@ -214,15 +238,16 @@
               </td>
               <td class="small">
                 <code class="text-secondary">{{ $row->location_code }}</code>
+                <span class="text-body-secondary">{{ $row->location_name }}</span>
               </td>
               <td class="small">
                 @if($row->lot_number && $row->serial_number)
-                  <div class="text-body-secondary">{{ $row->lot_number }}</div>
-                  <code>{{ $row->serial_number }}</code>
+                  <div class="text-body-secondary">Lot: {{ $row->lot_number }}</div>
+                  <code>S/N: {{ $row->serial_number }}</code>
                 @elseif($row->lot_number)
                   <code>{{ $row->lot_number }}</code>
                 @elseif($row->serial_number)
-                  <code>{{ $row->serial_number }}</code>
+                  <code>S/N: {{ $row->serial_number }}</code>
                 @else
                   <span class="text-body-secondary">—</span>
                 @endif
@@ -231,7 +256,7 @@
               <td class="text-end fw-semibold {{ $isIn ? 'text-success' : 'text-warning' }}">
                 {{ $isIn ? '+' : '-' }}{{ number_format((float)$row->quantity, 0) }}
               </td>
-              <td class="text-end text-body-secondary small">
+              <td class="text-end text-body-secondary small font-monospace">
                 {{ number_format((float)$row->balance_after, 0) }}
               </td>
               <td class="small text-body-secondary">
