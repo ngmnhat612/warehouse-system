@@ -426,15 +426,59 @@ function onProductChange(sel) {
     tr.querySelector('.uom-label').textContent = opt.dataset.uom || '—';
     tr.querySelector('.uom-hidden').value = opt.dataset.uomId || '';
 
-    // Điền lots theo sản phẩm
     const lotSel = tr.querySelector('.lot-select');
-    if (lotSel) {
-        const productLots = (LOTS[productId] || []);
-        lotSel.innerHTML = '<option value="">— Không chọn —</option>' +
-            productLots.map(l =>
-                `<option value="${l.id}">${l.lot_number}${l.expiry_date ? ' (HSD: ' + l.expiry_date + ')' : ''}</option>`
-            ).join('');
+    const fromSel = tr.querySelector('.from-location-select');
+
+    if (!productId) {
+        // Reset nếu chưa chọn sản phẩm
+        if (lotSel) lotSel.innerHTML = '<option value="">— Không chọn —</option>';
+        if (fromSel) fromSel.innerHTML = '<option value="">— Nguồn —</option>';
+        return;
     }
+
+    // Gọi AJAX lấy vị trí có tồn kho
+    if (fromSel) {
+        fromSel.innerHTML = '<option value="">Đang tải...</option>';
+        fromSel.disabled = true;
+    }
+
+    fetch(`{{ route('transfers.stock-locations') }}?product_id=${productId}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            // Populate vị trí nguồn
+            if (fromSel) {
+                fromSel.disabled = false;
+                if (data.length === 0) {
+                    fromSel.innerHTML = '<option value="">— Không có tồn kho —</option>';
+                } else {
+                    fromSel.innerHTML = '<option value="">— Chọn vị trí nguồn —</option>' +
+                        data.map(s =>
+                            `<option value="${s.location_id}" data-lot="${s.lot_id ?? ''}">` +
+                            `${s.code}${s.name ? ' — ' + s.name : ''} ` +
+                            `(KD: ${s.available_qty})</option>`
+                        ).join('');
+                }
+            }
+
+            // Populate lots theo sản phẩm (giữ nguyên logic cũ)
+            if (lotSel) {
+                const productLots = (LOTS[productId] || []);
+                lotSel.innerHTML = '<option value="">— Không chọn —</option>' +
+                    productLots.map(l =>
+                        `<option value="${l.id}">${l.lot_number}${l.expiry_date ? ' (HSD: ' + l.expiry_date + ')' : ''}</option>`
+                    ).join('');
+            }
+        })
+        .catch(() => {
+            if (fromSel) {
+                fromSel.disabled = false;
+                fromSel.innerHTML = '<option value="">— Lỗi tải dữ liệu —</option>';
+            }
+        });
 }
 
 // ── Kiểm tra vị trí nguồn ≠ vị trí đích ─────────────────────────

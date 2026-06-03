@@ -154,6 +154,28 @@ class StockIssueController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // AJAX: Vị trí & Lot có tồn kho khả dụng theo sản phẩm
+    // ──────────────────────────────────────────────────────────────────────────
+    public function stockLocations(int $productId)
+    {
+        $stocks = Stock::with(['location', 'lot'])
+            ->where('product_id', $productId)
+            ->where('available_qty', '>', 0)
+            ->get()
+            ->map(fn($s) => [
+                'location_id'   => $s->location_id,
+                'location_code' => $s->location?->code ?? '?',
+                'location_name' => $s->location?->name ?? '',
+                'lot_id'        => $s->lot_id,
+                'lot_number'    => $s->lot?->lot_number,
+                'expiry_date'   => $s->lot?->expiry_date,
+                'available_qty' => (float) $s->available_qty,
+            ]);
+
+        return response()->json($stocks);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // FORM CHỈNH SỬA
     // ──────────────────────────────────────────────────────────────────────────
 

@@ -167,12 +167,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('receipts/{receipt}/confirm', [StockReceiptController::class, 'confirm'])->name('receipts.confirm');
     Route::post('receipts/{receipt}/cancel',  [StockReceiptController::class, 'cancel'])->name('receipts.cancel');
 
+    Route::get('issues/stock-locations/{productId}', [StockIssueController::class, 'stockLocations'])
+    ->name('issues.stockLocations');
     Route::resource('issues', StockIssueController::class);
     Route::post('issues/{issue}/submit',  [StockIssueController::class, 'submit'])->name('issues.submit');
     Route::post('issues/{issue}/approve', [StockIssueController::class, 'approve'])->name('issues.approve');
     Route::post('issues/{issue}/confirm', [StockIssueController::class, 'confirm'])->name('issues.confirm');
     Route::post('issues/{issue}/cancel',  [StockIssueController::class, 'cancel'])->name('issues.cancel');
 
+    Route::get('transfers/stock-locations', [StockTransferController::class, 'stockLocations'])->name('transfers.stock-locations');
     Route::resource('transfers', StockTransferController::class);
     Route::post('transfers/{transfer}/confirm', [StockTransferController::class, 'confirm'])->name('transfers.confirm');
     Route::post('transfers/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('transfers.cancel');

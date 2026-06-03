@@ -356,9 +356,9 @@ function rowTemplate(i) {
              oninput="checkStock(this); updateTotals()">
     </td>
     <td>
-      <select class="form-select form-select-sm" name="details[${i}][location_id]" required>
-        <option value="">— Chọn —</option>
-        ${locationOptions}
+      <select class="form-select form-select-sm location-select" name="details[${i}][location_id]"
+              required onchange="onLocationChange(this)">
+        <option value="">— Chọn sản phẩm trước —</option>
       </select>
     </td>
     <td>
@@ -421,7 +421,7 @@ function updateTotals() {
         });
 }
 
-// ── Khi chọn hàng hóa → điền ĐVT, tồn kho, lots ──────────────────
+// ── Khi chọn hàng hóa → điền ĐVT, tồn kho tổng, fetch vị trí/lot ─
 window.onProductChange = function(sel) {
     const opt = sel.options[sel.selectedIndex];
     const tr = sel.closest('tr');
@@ -431,23 +431,108 @@ window.onProductChange = function(sel) {
     tr.querySelector('.uom-label').textContent = opt.dataset.uom || '—';
     tr.querySelector('.uom-hidden').value = opt.dataset.uomId || '';
 
-    // Tồn kho
+    // Tồn kho tổng (cột hiển thị)
     const stock = parseFloat(opt.dataset.stock) || 0;
     const stockEl = tr.querySelector('.stock-display');
     stockEl.textContent = stock.toLocaleString('vi-VN');
     stockEl.dataset.stock = stock;
 
-    // Điền lots
+    // Reset location & lot
+    const locationSel = tr.querySelector('.location-select');
     const lotSel = tr.querySelector('.lot-select');
-    if (lotSel) {
-        const productLots = (LOTS[productId] || []);
-        lotSel.innerHTML = '<option value="">— Không chọn —</option>' +
-            productLots.map(l =>
-                `<option value="${l.id}">${l.lot_number}${l.expiry_date ? ' (HSD: ' + l.expiry_date + ')' : ''}</option>`
-            ).join('');
+    locationSel.innerHTML = '<option value="">⏳ Đang tải vị trí...</option>';
+    locationSel.disabled = true;
+    lotSel.innerHTML = '<option value="">— Chọn vị trí trước —</option>';
+
+    if (!productId) {
+        locationSel.innerHTML = '<option value="">— Chọn sản phẩm trước —</option>';
+        locationSel.disabled = false;
+        return;
     }
 
+    // Fetch vị trí có tồn kho khả dụng
+    fetch(`/issues/stock-locations/${productId}`)
+        .then(r => r.json())
+        .then(stocks => {
+            // Gom nhóm theo location_id
+            const locMap = {};
+            stocks.forEach(s => {
+                if (!locMap[s.location_id]) {
+                    locMap[s.location_id] = {
+                        id: s.location_id,
+                        code: s.location_code,
+                        name: s.location_name,
+                        available_qty: 0,
+                        lots: [],
+                    };
+                }
+                locMap[s.location_id].available_qty += s.available_qty;
+                if (s.lot_id) {
+                    locMap[s.location_id].lots.push({
+                        id: s.lot_id,
+                        lot_number: s.lot_number,
+                        expiry_date: s.expiry_date,
+                        available_qty: s.available_qty,
+                    });
+                }
+            });
+
+            // Lưu stockMap vào tr để dùng khi đổi location
+            tr.dataset.stockMap = JSON.stringify(locMap);
+
+            const locs = Object.values(locMap);
+            if (locs.length === 0) {
+                locationSel.innerHTML = '<option value="">⚠ Không có tồn kho khả dụng</option>';
+            } else {
+                locationSel.innerHTML =
+                    '<option value="">— Chọn vị trí lấy hàng —</option>' +
+                    locs.map(l =>
+                        `<option value="${l.id}">` +
+                        `${l.code}${l.name ? ' — ' + l.name : ''} ` +
+                        `(Khả dụng: ${l.available_qty.toLocaleString('vi-VN')})` +
+                        `</option>`
+                    ).join('');
+
+                // Tự động chọn vị trí đầu tiên (gợi ý FIFO/FEFO đã được sort ở service)
+                if (locs.length === 1) {
+                    locationSel.value = locs[0].id;
+                    onLocationChange(locationSel);
+                }
+            }
+            locationSel.disabled = false;
+        })
+        .catch(() => {
+            locationSel.innerHTML = '<option value="">— Lỗi tải vị trí —</option>';
+            locationSel.disabled = false;
+        });
+
     checkStock(tr.querySelector('.qty-input'));
+}
+
+// ── Khi chọn vị trí → cập nhật lot tương ứng ─────────────────────
+window.onLocationChange = function(locationSel) {
+    const tr = locationSel.closest('tr');
+    const lotSel = tr.querySelector('.lot-select');
+    const locationId = parseInt(locationSel.value);
+    const stockMap = tr.dataset.stockMap ? JSON.parse(tr.dataset.stockMap) : {};
+
+    if (!locationId || !stockMap[locationId]) {
+        lotSel.innerHTML = '<option value="">— Không chọn —</option>';
+        return;
+    }
+
+    const lots = stockMap[locationId].lots;
+    lotSel.innerHTML = '<option value="">— Không chọn —</option>' +
+        lots.map(l =>
+            `<option value="${l.id}">` +
+            `${l.lot_number}` +
+            `${l.expiry_date ? ' (HSD: ' + l.expiry_date + ')' : ''}` +
+            ` — Tồn: ${l.available_qty.toLocaleString('vi-VN')}` +
+            `</option>`
+        ).join('');
+
+    // Tự động chọn lot đầu tiên nếu chỉ có 1
+    if (lots.length === 1) lotSel.value = lots[0].id;
 }
 
 // ── Kiểm tra SL xuất so với tồn ───────────────────────────────────

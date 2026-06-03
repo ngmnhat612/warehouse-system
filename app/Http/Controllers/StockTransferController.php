@@ -328,6 +328,29 @@ class StockTransferController extends Controller
             ->with('success', "Đã hủy phiếu {$transfer->code}.");
     }
 
+    /**
+     * AJAX: Trả về danh sách vị trí có tồn kho khả dụng cho một sản phẩm.
+     */
+    public function stockLocations(Request $request)
+    {
+        $request->validate(['product_id' => 'required|integer|exists:products,id']);
+
+        $locations = Stock::with('location')
+            ->where('product_id', $request->product_id)
+            ->whereHas('location', fn($q) => $q->where('type', 1)->where('status', 1))
+            ->whereRaw('quantity - reserved_qty > 0')
+            ->get()
+            ->map(fn($s) => [
+                'location_id'   => $s->location_id,
+                'code'          => $s->location?->code,
+                'name'          => $s->location?->name ?? '',
+                'lot_id'        => $s->lot_id,
+                'available_qty' => round($s->quantity - $s->reserved_qty, 3),
+            ]);
+
+        return response()->json($locations);
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ──────────────────────────────────────────────────────────────────────────
