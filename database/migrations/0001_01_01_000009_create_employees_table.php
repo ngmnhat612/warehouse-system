@@ -21,10 +21,18 @@ return new class extends Migration
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
         });
+
+        Schema::table('employees', function (Blueprint $table) {
+            $table->dropUnique('employees_user_id_unique');
+        });
     }
 
     public function down(): void
     {
         Schema::dropIfExists('employees');
+
+        Schema::table('employees', function (Blueprint $table) {
+            $table->unique('user_id');
+        });
     }
 };

@@ -53,6 +53,7 @@ class BomController extends Controller
     {
         $this->validateBom($request);
         $this->validateDetails($request);
+        $this->validateNoCircularReference($request);
 
         DB::transaction(function () use ($request) {
             $bom = Bom::create([
@@ -86,6 +87,7 @@ class BomController extends Controller
     {
         $this->validateBom($request, $bom->id);
         $this->validateDetails($request);
+        $this->validateNoCircularReference($request, $bom->id);
 
         DB::transaction(function () use ($request, $bom) {
             $bom->update([
@@ -107,8 +109,6 @@ class BomController extends Controller
 
     public function destroy(Bom $bom)
     {
-        // Kiểm tra BOM có đang dùng trong phiếu tách/ghép không
-        // (sẽ bổ sung check khi có bảng transformations)
         $name = $bom->name;
         $bom->delete(); // cascade xóa bom_details
 
@@ -140,14 +140,14 @@ class BomController extends Controller
     private function validateDetails(Request $request): void
     {
         $request->validate([
-            'details'                => 'required|array|min:2',
-            'details.*.product_id'   => 'required|exists:products,id',
-            'details.*.line_type'    => 'required|in:1,2',
-            'details.*.qty'          => 'required|numeric|min:0.001',
-            'details.*.uom_id'       => 'required|exists:uoms,id',
+            'details'                  => 'required|array|min:2',
+            'details.*.product_id'     => 'required|exists:products,id',
+            'details.*.line_type'      => 'required|in:1,2',
+            'details.*.qty'            => 'required|numeric|min:0.001',
+            'details.*.uom_id'         => 'required|exists:uoms,id',
         ], [
-            'details.required'             => 'BOM phải có ít nhất 1 dòng Consume và 1 dòng Produce.',
-            'details.min'                  => 'BOM phải có ít nhất 2 dòng.',
+            'details.required'              => 'BOM phải có ít nhất 1 dòng Consume và 1 dòng Produce.',
+            'details.min'                   => 'BOM phải có ít nhất 2 dòng.',
             'details.*.product_id.required' => 'Vui lòng chọn hàng hóa.',
             'details.*.qty.required'        => 'Vui lòng nhập số lượng.',
             'details.*.qty.min'             => 'Số lượng phải lớn hơn 0.',
@@ -155,9 +155,51 @@ class BomController extends Controller
         ]);
 
         // Phải có ít nhất 1 Consume và 1 Produce
-        $types = collect($request->details)->pluck('line_type')->map('intval');
+        $types = collect($request->details)->pluck('line_type')->map(fn($v) => (int) $v);
+
         if (!$types->contains(BomDetail::TYPE_CONSUME) || !$types->contains(BomDetail::TYPE_PRODUCE)) {
-            abort(422, 'BOM phải có ít nhất 1 dòng Consume (đầu vào) và 1 dòng Produce (đầu ra).');
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'details' => 'BOM phải có ít nhất 1 dòng Consume (đầu vào) và 1 dòng Produce (đầu ra).',
+            ]);
+        }
+    }
+
+    /**
+     * Validate ngăn chặn cấu hình vòng lặp (circular reference) trong BOM.
+     *
+     * Gọi Bom::detectCircularReference() — hàm đệ quy DFS trên graph BOM.
+     * Nếu phát hiện cycle, abort 422 với thông báo chi tiết path.
+     */
+    private function validateNoCircularReference(Request $request, ?int $currentBomId = null): void
+    {
+        $details = collect($request->details);
+
+        $produceIds = $details
+            ->where('line_type', BomDetail::TYPE_PRODUCE)
+            ->pluck('product_id')
+            ->map('intval')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $consumeIds = $details
+            ->where('line_type', BomDetail::TYPE_CONSUME)
+            ->pluck('product_id')
+            ->map('intval')
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $result = Bom::detectCircularReference(
+            produceProductIds: $produceIds,
+            consumeProductIds: $consumeIds,
+            excludeBomId:      $currentBomId
+        );
+
+        if ($result['has_cycle']) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'details' => "Phát hiện vòng lặp trong cấu hình BOM. {$result['path']}",
+            ]);
         }
     }
 

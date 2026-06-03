@@ -51,6 +51,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'destroy' => 'category.destroy',
             ]);
 
+        Route::get('product/generate-barcode', [ProductController::class, 'generateBarcode'])
+            ->name('product.generate-barcode');  
+
         Route::resource('product', ProductController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->names([
@@ -68,6 +71,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'update'  => 'supplier.update',
                 'destroy' => 'supplier.destroy',
             ]);
+
+        Route::get('location/{location}/barcode', [LocationController::class, 'barcode'])
+            ->name('location.barcode');
 
         Route::resource('location', LocationController::class)
             ->only(['index', 'store', 'update', 'destroy'])
@@ -100,6 +106,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('employee/{employee}/account',        [EmployeeController::class, 'createAccount'])->name('employee.account.create');
         Route::put('employee/{employee}/account',         [EmployeeController::class, 'updateAccount'])->name('employee.account.update');
         Route::delete('employee/{employee}/account',      [EmployeeController::class, 'deleteAccount'])->name('employee.account.delete');
+
+        Route::post('employee/user/{user}/activate', [EmployeeController::class, 'activateUser'])
+            ->name('employee.user.activate');
+        
+        Route::delete('employee/user/{user}/reject', [EmployeeController::class, 'rejectUser'])
+            ->name('employee.user.reject');
 
         Route::resource('bom', BomController::class)
             ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
@@ -168,11 +180,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // ── TỒN KHO ───────────────────────────────────────────────────────
     Route::prefix('inventory')->name('inventory.')->group(function () {
-        Route::get('/',       [InventoryController::class, 'index'])->name('index');
-        Route::get('/ledger', [InventoryController::class, 'ledger'])->name('ledger');
-        Route::get('/locations', [InventoryController::class, 'locations'])->name('locations');
+        Route::get('/',              [InventoryController::class, 'index'])->name('index');
+        Route::get('/ledger',        [InventoryController::class, 'ledger'])->name('ledger');
+        Route::get('/ledger/export', [InventoryController::class, 'exportLedger'])->name('ledger.export');
+        Route::get('/locations',     [InventoryController::class, 'locations'])->name('locations');
     });
-
 
 });
 

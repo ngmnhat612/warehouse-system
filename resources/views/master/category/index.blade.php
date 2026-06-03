@@ -66,147 +66,175 @@
     </div>
   </div>
 
-  {{-- ===== BẢNG DANH SÁCH ===== --}}
-  <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <span class="fw-semibold">Danh sách nhóm hàng hóa</span>
+  {{-- ===== VIEW TOGGLE ===== --}}
+  <ul class="nav nav-tabs mb-3" id="categoryViewTabs" data-coreui-toggle="tabs">
+    <li class="nav-item">
+      <a class="nav-link {{ $viewMode !== 'tree' ? 'active' : '' }}" href="#tabList" data-coreui-toggle="tab">
+        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use></svg>
+        Danh sách
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link {{ $viewMode === 'tree' ? 'active' : '' }}" href="#tabTree" data-coreui-toggle="tab">
+        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-sitemap') }}"></use></svg>
+        Sơ đồ cây
+      </a>
+    </li>
+  </ul>
 
-      <form method="GET" action="{{ route('master.category.index') }}" class="d-flex gap-2 flex-wrap">
-        <div class="input-group" style="width:220px">
-          <span class="input-group-text">
-            <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-search') }}"></use></svg>
-          </span>
-          <input type="text" class="form-control" name="search"
-                 value="{{ request('search') }}" placeholder="Mã hoặc tên danh mục...">
+  <div class="tab-content">
+
+    {{-- ===== TAB DANH SÁCH ===== --}}
+    <div class="tab-pane fade {{ $viewMode !== 'tree' ? 'show active' : '' }}" id="tabList">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <span class="fw-semibold">Danh sách nhóm hàng hóa</span>
+
+          <form method="GET" action="{{ route('master.category.index') }}" class="d-flex gap-2 flex-wrap">
+            <input type="hidden" name="view" value="list">
+            <div class="input-group" style="width:220px">
+              <span class="input-group-text">
+                <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-search') }}"></use></svg>
+              </span>
+              <input type="text" class="form-control" name="search"
+                     value="{{ request('search') }}" placeholder="Mã hoặc tên danh mục...">
+            </div>
+
+            <select class="form-select" name="parent_id" style="width:160px">
+              <option value="">Tất cả cấp</option>
+              <option value="root" {{ request('parent_id') == 'root' ? 'selected' : '' }}>Chỉ danh mục gốc</option>
+              @foreach ($parentOptions as $p)
+                <option value="{{ $p->id }}" {{ request('parent_id') == $p->id ? 'selected' : '' }}>
+                  Con của: {{ $p->name }}
+                </option>
+              @endforeach
+            </select>
+
+            <select class="form-select" name="status" style="width:130px">
+              <option value="">Tất cả</option>
+              <option value="1" {{ request('status') == '1' ? 'selected' : '' }}>Hoạt động</option>
+              <option value="0" {{ request('status') == '0' ? 'selected' : '' }}>Ngừng</option>
+            </select>
+
+            <button type="submit" class="btn btn-outline-primary">Lọc</button>
+            @if(request('search') || request('parent_id') || (request('status') !== null && request('status') !== ''))
+              <a href="{{ route('master.category.index') }}" class="btn btn-outline-secondary">Xóa lọc</a>
+            @endif
+          </form>
         </div>
 
-        <select class="form-select" name="parent_id" style="width:160px">
-          <option value="">Tất cả cấp</option>
-          <option value="root" {{ request('parent_id') == 'root' ? 'selected' : '' }}>Chỉ danh mục gốc</option>
-          @foreach ($parentOptions as $p)
-            <option value="{{ $p->id }}" {{ request('parent_id') == $p->id ? 'selected' : '' }}>
-              Con của: {{ $p->name }}
-            </option>
-          @endforeach
-        </select>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:55px" class="text-center">#</th>
+                  <th style="width:110px">Mã</th>
+                  <th>Tên danh mục</th>
+                  <th style="width:180px">Danh mục cha</th>
+                  <th>Mô tả</th>
+                  <th class="text-center" style="width:130px">Trạng thái</th>
+                  <th class="text-center" style="width:120px">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse ($categories as $index => $cat)
+                  <tr>
+                    <td class="text-center text-body-secondary">
+                      {{ ($categories->currentPage() - 1) * $categories->perPage() + $index + 1 }}
+                    </td>
+                    <td>
+                      <code class="text-primary fw-medium">{{ $cat->code }}</code>
+                    </td>
+                    <td>
+                      @if ($cat->parent)
+                        <span class="text-body-secondary me-1" style="font-size:11px">
+                          <svg class="icon icon-sm"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-level-down') }}"></use></svg>
+                        </span>
+                      @endif
+                      <span class="fw-medium">{{ $cat->name }}</span>
+                      @if ($cat->hasChildren())
+                        <span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size:10px">
+                          Có con
+                        </span>
+                      @endif
+                    </td>
+                    <td>
+                      @if ($cat->parent)
+                        <span class="badge bg-body-secondary text-body border">{{ $cat->parent->name }}</span>
+                      @else
+                        <span class="text-body-secondary small">— Danh mục gốc</span>
+                      @endif
+                    </td>
+                    <td class="text-body-secondary small">
+                      {{ Str::limit($cat->description, 60) ?: '—' }}
+                    </td>
+                    <td class="text-center">
+                      @if ($cat->status == 1)
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                          Hoạt động
+                        </span>
+                      @else
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                          Ngừng
+                        </span>
+                      @endif
+                    </td>
+                    <td class="text-center">
+                      <button class="btn btn-sm btn-outline-primary me-1"
+                              onclick="openModal(
+                                {{ $cat->id }},
+                                '{{ addslashes($cat->code) }}',
+                                '{{ addslashes($cat->name) }}',
+                                {{ $cat->parent_id ?? 'null' }},
+                                '{{ addslashes($cat->description ?? '') }}',
+                                {{ $cat->status }}
+                              )"
+                              title="Chỉnh sửa">
+                        <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-pencil') }}"></use></svg>
+                      </button>
+                      <button class="btn btn-sm btn-outline-danger"
+                              onclick="confirmDelete({{ $cat->id }}, '{{ addslashes($cat->name) }}')"
+                              title="Xóa">
+                        <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}"></use></svg>
+                      </button>
+                    </td>
+                  </tr>
+                @empty
+                  <tr>
+                    <td colspan="7" class="text-center text-body-secondary py-5">
+                      <svg class="icon icon-3xl d-block mx-auto mb-2 opacity-25">
+                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-layers') }}"></use>
+                      </svg>
+                      Chưa có danh mục nào
+                      @if(request('search'))
+                        <div class="small mt-1">Không tìm thấy kết quả cho "<strong>{{ request('search') }}</strong>"</div>
+                      @endif
+                    </td>
+                  </tr>
+                @endforelse
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-        <select class="form-select" name="status" style="width:130px">
-          <option value="">Tất cả</option>
-          <option value="1" {{ request('status') == '1' ? 'selected' : '' }}>Hoạt động</option>
-          <option value="0" {{ request('status') == '0' ? 'selected' : '' }}>Ngừng</option>
-        </select>
-
-        <button type="submit" class="btn btn-outline-primary">Lọc</button>
-        @if(request('search') || request('parent_id') || (request('status') !== null && request('status') !== ''))
-          <a href="{{ route('master.category.index') }}" class="btn btn-outline-secondary">Xóa lọc</a>
+        @if ($paginator && $paginator->hasPages())
+          <div class="card-footer d-flex justify-content-between align-items-center">
+            <small class="text-body-secondary">
+              Hiển thị {{ $paginator->firstItem() }}–{{ $paginator->lastItem() }}
+              trong tổng số {{ $paginator->total() }} danh mục
+            </small>
+            {{ $paginator->appends(request()->query())->links('pagination::bootstrap-5') }}
+          </div>
         @endif
-      </form>
-    </div>
-
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th style="width:55px" class="text-center">#</th>
-              <th style="width:110px">Mã</th>
-              <th>Tên danh mục</th>
-              <th style="width:180px">Danh mục cha</th>
-              <th>Mô tả</th>
-              <th class="text-center" style="width:130px">Trạng thái</th>
-              <th class="text-center" style="width:120px">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
-            @forelse ($categories as $index => $cat)
-              <tr>
-                <td class="text-center text-body-secondary">
-                  {{ ($categories->currentPage() - 1) * $categories->perPage() + $index + 1 }}
-                </td>
-                <td>
-                  <code class="text-primary fw-medium">{{ $cat->code }}</code>
-                </td>
-                <td>
-                  @if ($cat->parent)
-                    <span class="text-body-secondary me-1" style="font-size:11px">
-                      <svg class="icon icon-sm"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-level-down') }}"></use></svg>
-                    </span>
-                  @endif
-                  <span class="fw-medium">{{ $cat->name }}</span>
-                  @if ($cat->hasChildren())
-                    <span class="badge bg-info-subtle text-info border border-info-subtle ms-1" style="font-size:10px">
-                      Có con
-                    </span>
-                  @endif
-                </td>
-                <td>
-                  @if ($cat->parent)
-                    <span class="badge bg-body-secondary text-body border">{{ $cat->parent->name }}</span>
-                  @else
-                    <span class="text-body-secondary small">— Danh mục gốc</span>
-                  @endif
-                </td>
-                <td class="text-body-secondary small">
-                  {{ Str::limit($cat->description, 60) ?: '—' }}
-                </td>
-                <td class="text-center">
-                  @if ($cat->status == 1)
-                    <span class="badge bg-success-subtle text-success border border-success-subtle">
-                      Hoạt động
-                    </span>
-                  @else
-                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
-                      Ngừng
-                    </span>
-                  @endif
-                </td>
-                <td class="text-center">
-                  <button class="btn btn-sm btn-outline-primary me-1"
-                          onclick="openModal(
-                            {{ $cat->id }},
-                            '{{ addslashes($cat->code) }}',
-                            '{{ addslashes($cat->name) }}',
-                            {{ $cat->parent_id ?? 'null' }},
-                            '{{ addslashes($cat->description ?? '') }}',
-                            {{ $cat->status }}
-                          )"
-                          title="Chỉnh sửa">
-                    <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-pencil') }}"></use></svg>
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger"
-                          onclick="confirmDelete({{ $cat->id }}, '{{ addslashes($cat->name) }}')"
-                          title="Xóa">
-                    <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}"></use></svg>
-                  </button>
-                </td>
-              </tr>
-            @empty
-              <tr>
-                <td colspan="7" class="text-center text-body-secondary py-5">
-                  <svg class="icon icon-3xl d-block mx-auto mb-2 opacity-25">
-                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-layers') }}"></use>
-                  </svg>
-                  Chưa có danh mục nào
-                  @if(request('search'))
-                    <div class="small mt-1">Không tìm thấy kết quả cho "<strong>{{ request('search') }}</strong>"</div>
-                  @endif
-                </td>
-              </tr>
-            @endforelse
-          </tbody>
-        </table>
       </div>
     </div>
 
-    @if ($categories->hasPages())
-      <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-body-secondary">
-          Hiển thị {{ $categories->firstItem() }}–{{ $categories->lastItem() }}
-          trong tổng số {{ $categories->total() }} danh mục
-        </small>
-        {{ $categories->appends(request()->query())->links('pagination::bootstrap-5') }}
-      </div>
-    @endif
+    {{-- ===== TAB SƠ ĐỒ CÂY ===== --}}
+    <div class="tab-pane fade {{ $viewMode === 'tree' ? 'show active' : '' }}" id="tabTree">
+      @include('master.category.partials.tree')
+    </div>
+
   </div>
 
   {{-- ===== MODAL TẠO / SỬA ===== --}}
@@ -216,6 +244,7 @@
         <form id="categoryForm" method="POST">
           @csrf
           <input type="hidden" name="_method" id="formMethod" value="POST">
+          <input type="hidden" name="return_view" id="returnView" value="list">
 
           <div class="modal-header">
             <h5 class="modal-title" id="categoryModalLabel">Thêm danh mục</h5>
@@ -225,7 +254,6 @@
           <div class="modal-body">
 
             <div class="row g-3">
-              {{-- Mã danh mục --}}
               <div class="col-md-4">
                 <label class="form-label fw-medium">
                   Mã danh mục <span class="text-danger">*</span>
@@ -236,7 +264,6 @@
                 <div class="form-text">Tự động viết hoa</div>
               </div>
 
-              {{-- Tên danh mục --}}
               <div class="col-md-8">
                 <label class="form-label fw-medium">
                   Tên danh mục <span class="text-danger">*</span>
@@ -246,7 +273,6 @@
               </div>
             </div>
 
-            {{-- Danh mục cha --}}
             <div class="mb-3 mt-3">
               <label class="form-label fw-medium">Danh mục cha</label>
               <select class="form-select" id="catParent" name="parent_id">
@@ -258,7 +284,6 @@
               <div class="form-text">Để trống nếu đây là danh mục cấp cao nhất</div>
             </div>
 
-            {{-- Mô tả --}}
             <div class="mb-3">
               <label class="form-label fw-medium">Mô tả</label>
               <textarea class="form-control" id="catDesc" name="description"
@@ -266,7 +291,6 @@
                         placeholder="Mô tả ngắn về nhóm hàng hóa này..."></textarea>
             </div>
 
-            {{-- Trạng thái --}}
             <div>
               <label class="form-label fw-medium">Trạng thái</label>
               <div class="d-flex gap-3">
@@ -336,11 +360,17 @@
   const routeStore = '{{ route('master.category.store') }}';
   const routeBase  = '{{ url('master/category') }}';
 
+  // Khi mở modal từ tree view, truyền return_view = 'tree' để redirect về đúng tab
   function openModal(id = null, code = '', name = '', parentId = null, desc = '', status = 1) {
-    const modal  = new coreui.Modal(document.getElementById('categoryModal'));
-    const form   = document.getElementById('categoryForm');
-    const title  = document.getElementById('categoryModalLabel');
-    const method = document.getElementById('formMethod');
+    const modal      = new coreui.Modal(document.getElementById('categoryModal'));
+    const form       = document.getElementById('categoryForm');
+    const title      = document.getElementById('categoryModalLabel');
+    const method     = document.getElementById('formMethod');
+    const returnView = document.getElementById('returnView');
+
+    // Xác định đang ở tab nào để redirect về đúng chỗ sau khi lưu
+    const activeTab = document.querySelector('#categoryViewTabs .nav-link.active');
+    returnView.value = (activeTab && activeTab.getAttribute('href') === '#tabTree') ? 'tree' : 'list';
 
     document.getElementById('catCode').value   = code;
     document.getElementById('catName').value   = name;
@@ -358,6 +388,7 @@
       method.value      = 'POST';
       form.reset();
       document.getElementById('catStatusActive').checked = true;
+      returnView.value = (activeTab && activeTab.getAttribute('href') === '#tabTree') ? 'tree' : 'list';
     }
 
     modal.show();
@@ -376,5 +407,13 @@
     this.value = this.value.toUpperCase();
     this.setSelectionRange(pos, pos);
   });
+
+  // Khôi phục tab đúng khi redirect về với ?view=tree
+  @if($viewMode === 'tree')
+    document.addEventListener('DOMContentLoaded', function () {
+      const treeTab = document.querySelector('[href="#tabTree"]');
+      if (treeTab) coreui.Tab.getOrCreateInstance(treeTab).show();
+    });
+  @endif
 </script>
 @endpush

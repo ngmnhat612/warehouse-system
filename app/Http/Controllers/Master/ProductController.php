@@ -53,11 +53,10 @@ class ProductController extends Controller
      */
     public function generateBarcode()
     {
-        // Tạo EAN-13 style barcode: prefix 200 (nội bộ) + timestamp ngẫu nhiên
         do {
-            $barcode = '200' . str_pad(random_int(0, 9999999999), 10, '0', STR_PAD_LEFT);
-            // Tính check digit EAN-13
-            $barcode = $this->appendEan13Check($barcode);
+            // Prefix 200 (nội bộ) + 9 số ngẫu nhiên = 12 số → thêm check digit = 13 số
+            $twelveDigits = '200' . str_pad(random_int(0, 999999999), 9, '0', STR_PAD_LEFT);
+            $barcode = $this->appendEan13Check($twelveDigits);
         } while (Product::where('barcode', $barcode)->exists());
 
         return response()->json(['barcode' => $barcode]);
@@ -88,7 +87,11 @@ class ProductController extends Controller
         $data['code'] = strtoupper(trim($request->code));
 
         if ($request->hasFile('image')) {
-            $data['image_path'] = $request->file('image')->store('products', 'public');
+            $data['image_path'] = $this->storeImage(
+            $request->file('image'),
+            $request->name,
+            $request->code
+        );
         }
 
         Product::create($data);
@@ -126,7 +129,11 @@ class ProductController extends Controller
             if ($product->image_path) {
                 Storage::disk('public')->delete($product->image_path);
             }
-            $data['image_path'] = $request->file('image')->store('products', 'public');
+            $data['image_path'] = $this->storeImage(
+                $request->file('image'),
+                $request->name,
+                $request->code
+            );
         }
 
         // Xóa ảnh nếu user tick "xóa ảnh"
@@ -170,7 +177,9 @@ class ProductController extends Controller
         $sum = 0;
         for ($i = 0; $i < 12; $i++) {
             $digit = (int) $twelveDigits[$i];
-            $sum  += ($i % 2 === 0) ? $digit : $digit * 3;
+            // Vị trí 1,3,5... (index 0,2,4) nhân 1
+            // Vị trí 2,4,6... (index 1,3,5) nhân 3
+            $sum += ($i % 2 === 0) ? $digit * 1 : $digit * 3;
         }
         $check = (10 - ($sum % 10)) % 10;
         return $twelveDigits . $check;
@@ -188,5 +197,18 @@ class ProductController extends Controller
             'image.image'      => 'File ảnh không hợp lệ.',
             'image.max'        => 'Ảnh không được vượt quá 2MB.',
         ];
+    }
+
+    private function storeImage($file, string $productName, string $productCode): string
+    {
+        $extension = $file->getClientOriginalExtension();
+        
+        // Slug hóa tên: "Máy bơm nước LVP-50" → "may-bom-nuoc-lvp-50"
+        $slug = Str::slug($productName);
+        
+        // Tên file: may-bom-nuoc-lvp-50_SP001.jpg
+        $filename = $slug . '_' . strtoupper($productCode) . '.' . $extension;
+        
+        return $file->storeAs('products', $filename, 'public');
     }
 }
