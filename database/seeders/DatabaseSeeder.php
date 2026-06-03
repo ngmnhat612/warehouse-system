@@ -42,6 +42,9 @@ class DatabaseSeeder extends Seeder
 
             // 9. Tồn kho ban đầu (phải sau tất cả phía trên)
             StockSeeder::class,
+
+            // 10. Giao dịch kho mẫu (phải sau có sản phẩm, vị trí, lot/serial) - UPDATE
+            StockTransactionSeeder::class
         ]);
     }
 }
