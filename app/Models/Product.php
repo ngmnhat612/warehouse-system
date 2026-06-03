@@ -56,6 +56,11 @@ class Product extends Model
 
     // ===== RELATIONSHIPS =====
 
+    public function lots()
+    {
+        return $this->hasMany(Lot::class, 'product_id');
+    }
+
     public function category()
     {
         return $this->belongsTo(Category::class, 'category_id');

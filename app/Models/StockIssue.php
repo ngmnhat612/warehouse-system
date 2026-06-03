@@ -16,6 +16,11 @@ class StockIssue extends Model
     protected $casts = [
         'issue_date'           => 'date',
         'expected_return_date' => 'date',
+        'status'               => 'integer',
+        'issue_type'           => 'integer',
+        'requester_id'         => 'integer',
+        'created_by'           => 'integer',
+        'confirmed_by'         => 'integer',
     ];
 
     // issue_type constants
@@ -43,6 +48,16 @@ class StockIssue extends Model
     }
 
     // ===== RELATIONSHIPS =====
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function confirmer()
+    {
+        return $this->belongsTo(User::class, 'confirmed_by');
+    }
 
     public function details()
     {
