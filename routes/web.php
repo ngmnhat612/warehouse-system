@@ -185,7 +185,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('scraps/{scrap}/approve', [ScrapController::class, 'approve'])->name('scraps.approve');
     Route::post('scraps/{scrap}/cancel',  [ScrapController::class, 'cancel'])->name('scraps.cancel');
 
-    Route::resource('stocktakes', InventoryCheckController::class);
+    Route::resource('stocktakes', InventoryCheckController::class)->except(['edit', 'update', 'destroy']);
+    Route::post('stocktakes/{stocktake}/activate',                       [InventoryCheckController::class, 'activate'])->name('stocktakes.activate');
+    Route::post('stocktakes/{stocktake}/lines/{line}',                   [InventoryCheckController::class, 'updateLine'])->name('stocktakes.lines.update');
+    Route::post('stocktakes/{stocktake}/lines',                          [InventoryCheckController::class, 'updateLines'])->name('stocktakes.lines.updateAll');
+    Route::post('stocktakes/{stocktake}/complete',                       [InventoryCheckController::class, 'complete'])->name('stocktakes.complete');
+    Route::post('stocktakes/{stocktake}/adjustment',                     [InventoryCheckController::class, 'createAdjustment'])->name('stocktakes.adjustment.create');
+    Route::get('stocktakes/{stocktake}/adjustment/{adjustment}',         [InventoryCheckController::class, 'showAdjustment'])->name('stocktakes.adjustment.show');
+    Route::post('stocktakes/{stocktake}/adjustment/{adjustment}/apply',  [InventoryCheckController::class, 'applyAdjustment'])->name('stocktakes.adjustment.apply');
+    Route::post('stocktakes/{stocktake}/unfreeze',                       [InventoryCheckController::class, 'unfreeze'])->name('stocktakes.unfreeze');
+    Route::post('stocktakes/{stocktake}/cancel',                         [InventoryCheckController::class, 'cancel'])->name('stocktakes.cancel');
 
     // ── TỒN KHO ───────────────────────────────────────────────────────
     Route::prefix('inventory')->name('inventory.')->group(function () {
@@ -201,6 +210,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('transfers/{transfer}/print', [StockTransferController::class, 'printPdf'])->name('transfers.print');
+    Route::get('scraps/{scrap}/print',       [ScrapController::class,       'printPdf'])->name('scraps.print');
 });
 
 require __DIR__.'/auth.php';

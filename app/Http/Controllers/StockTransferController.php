@@ -147,6 +147,24 @@ class StockTransferController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // IN PHIẾU CHUYỂN KHO (PDF / Browser Print)
+    // ──────────────────────────────────────────────────────────────────────────
+    public function printPdf(StockTransfer $transfer)
+    {
+        $transfer->load([
+            'createdBy',
+            'confirmedBy',
+            'details.product.uom',
+            'details.fromLocation',
+            'details.toLocation',
+            'details.lot',
+            'details.uom',
+        ]);
+
+        return view('transfers.print', compact('transfer'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // FORM CHỈNH SỬA
     // ──────────────────────────────────────────────────────────────────────────
 

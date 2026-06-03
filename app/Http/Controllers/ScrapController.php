@@ -89,6 +89,23 @@ class ScrapController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // IN PHIẾU HỦY HÀNG (PDF / Browser Print)
+    // ──────────────────────────────────────────────────────────────────────────
+    public function printPdf(Scrap $scrap)
+    {
+        $scrap->load([
+            'createdBy',
+            'approvedBy',
+            'details.product.uom',
+            'details.location',
+            'details.lot',
+            'details.uom',
+        ]);
+
+        return view('scrap.print', compact('scrap'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // FORM CHỈNH SỬA
     // ──────────────────────────────────────────────────────────────────────────
 

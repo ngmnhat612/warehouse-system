@@ -210,6 +210,13 @@ $s = (int) $scrap->status;
                         </svg>
                         Xác nhận hủy hàng
                     </button>
+                    <a href="{{ route('scraps.print', $scrap) }}" target="_blank"
+                        class="btn btn-outline-secondary btn-sm">
+                        <svg class="icon me-1">
+                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
+                        </svg>
+                        In phiếu
+                    </a>
                 </form>
             </div>
         </div>
