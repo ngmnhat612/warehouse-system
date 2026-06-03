@@ -186,14 +186,45 @@
     {{-- BÁO CÁO --}}
     <li class="nav-title">Báo cáo</li>
 
-    <li class="nav-item">
-      <a class="nav-link {{ request()->routeIs('reports.*') ? 'active' : '' }}"
-         href="{{ route('reports.index') }}">
+    <li class="nav-group {{ request()->routeIs('reports.*') ? 'show' : '' }}">
+      <a class="nav-link nav-group-toggle" href="#">
         <svg class="nav-icon">
           <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-chart-pie') }}"></use>
         </svg>
-        Báo cáo tổng hợp
+        Báo cáo
       </a>
+      <ul class="nav-group-items compact">
+        <li class="nav-item">
+          <a class="nav-link {{ request()->routeIs('reports.index') ? 'active' : '' }}"
+              href="{{ route('reports.index') }}">
+            <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+            Tổng hợp NXT
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {{ request()->routeIs('reports.alerts.below_min') ? 'active' : '' }}"
+              href="{{ route('reports.alerts.below_min') }}">
+            <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+            <span class="d-flex align-items-center gap-1">
+              Dưới định mức
+            </span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {{ request()->routeIs('reports.alerts.slow_moving') ? 'active' : '' }}"
+              href="{{ route('reports.alerts.slow_moving') }}">
+            <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+            Hàng đọng kho
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {{ request()->routeIs('reports.alerts.near_expiry') ? 'active' : '' }}"
+              href="{{ route('reports.alerts.near_expiry') }}">
+            <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+            Hàng cận date
+          </a>
+        </li>
+      </ul>
     </li>
 
     {{-- HỆ THỐNG --}}

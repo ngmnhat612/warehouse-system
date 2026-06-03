@@ -1,274 +1,239 @@
 @extends('layouts.app')
 
-@section('title', 'Tạo phiếu kiểm kê — Warehouse System')
+@section('title', 'Tạo phiếu kiểm kê')
 
 @section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('stocktakes.index') }}">Kiểm kê</a></li>
-<li class="breadcrumb-item active">Tạo phiếu mới</li>
+  <li class="breadcrumb-item"><a href="{{ route('stocktakes.index') }}">Kiểm kê kho</a></li>
+  <li class="breadcrumb-item active">Tạo phiếu kiểm kê</li>
 @endsection
 
 @section('content')
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <a href="{{ route('stocktakes.index') }}" class="btn btn-outline-secondary btn-sm">
+        <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-left') }}"></use></svg>
+      </a>
+      <div>
         <h4 class="mb-0 fw-semibold">Tạo phiếu kiểm kê</h4>
-        <small class="text-body-secondary">Chọn phạm vi và ngày tiến hành kiểm kê</small>
-    </div>
-    <a href="{{ route('stocktakes.index') }}" class="btn btn-outline-secondary">
-        <svg class="icon me-1">
-            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-left') }}"></use>
-        </svg>
-        Quay lại
-    </a>
-</div>
-
-<form method="POST" action="{{ route('stocktakes.store') }}" id="formCreate">
-    @csrf
-
-    <div class="row g-4">
-
-        {{-- CỘT TRÁI: Thông tin chung --}}
-        <div class="col-lg-5">
-            <div class="card">
-                <div class="card-header fw-semibold">
-                    <svg class="icon me-1">
-                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-description') }}"></use>
-                    </svg>
-                    Thông tin phiếu
-                </div>
-                <div class="card-body">
-
-                    {{-- Loại kiểm kê --}}
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Loại kiểm kê <span class="text-danger">*</span></label>
-                        <div class="d-flex gap-3 flex-wrap">
-                            @foreach([1 => ['Toàn kho','cil-storage','primary'], 2 => ['Theo khu
-                            vực','cil-location-pin','info'], 3 => ['Theo mặt hàng','cil-tags','secondary']] as $val =>
-                            [$label, $icon, $color])
-                            <label class="card flex-row align-items-center gap-2 px-3 py-2 cursor-pointer border
-                            @error('check_type') border-danger @enderror" style="min-width:140px; cursor:pointer"
-                                id="card_type_{{ $val }}">
-                                <input type="radio" name="check_type" value="{{ $val }}"
-                                    class="form-check-input mt-0 check-type-radio"
-                                    {{ old('check_type', 1) == $val ? 'checked' : '' }}>
-                                <svg class="icon text-{{ $color }}">
-                                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#'.$icon) }}"></use>
-                                </svg>
-                                <span class="small fw-medium">{{ $label }}</span>
-                            </label>
-                            @endforeach
-                        </div>
-                        @error('check_type')
-                        <div class="text-danger small mt-1">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    {{-- Ngày kiểm kê --}}
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Ngày kiểm kê <span class="text-danger">*</span></label>
-                        <input type="date" name="check_date"
-                            class="form-control @error('check_date') is-invalid @enderror"
-                            value="{{ old('check_date', now()->toDateString()) }}">
-                        @error('check_date')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    {{-- Người phụ trách --}}
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Người phụ trách</label>
-                        <select name="assigned_to" class="form-select">
-                            <option value="">— Không chỉ định —</option>
-                            @foreach($users as $user)
-                            <option value="{{ $user->id }}" {{ old('assigned_to') == $user->id ? 'selected' : '' }}>
-                                {{ $user->name }}
-                            </option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    {{-- Ghi chú --}}
-                    <div class="mb-0">
-                        <label class="form-label fw-medium">Ghi chú</label>
-                        <textarea name="note" class="form-control" rows="3"
-                            placeholder="Lý do / nội dung kiểm kê...">{{ old('note') }}</textarea>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        {{-- CỘT PHẢI: Phạm vi kiểm kê --}}
-        <div class="col-lg-7">
-
-            {{-- Toàn kho --}}
-            <div id="scope_1" class="scope-panel">
-                <div class="card border-primary">
-                    <div class="card-body text-center py-5 text-primary">
-                        <svg class="icon icon-3xl mb-2">
-                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-storage') }}"></use>
-                        </svg>
-                        <div class="fw-semibold">Kiểm kê toàn bộ kho</div>
-                        <div class="text-body-secondary small mt-1">Tất cả vị trí và mặt hàng sẽ được đưa vào phiếu kiểm
-                            kê.</div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Theo khu vực --}}
-            <div id="scope_2" class="scope-panel d-none">
-                <div class="card">
-                    <div class="card-header fw-semibold">
-                        <svg class="icon me-1 text-info">
-                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-location-pin') }}">
-                            </use>
-                        </svg>
-                        Chọn vị trí kho
-                        @error('location_ids')
-                        <span class="text-danger small ms-2">{{ $message }}</span>
-                        @enderror
-                    </div>
-                    <div class="card-body p-0" style="max-height:380px; overflow-y:auto">
-                        <table class="table table-sm table-hover mb-0">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th style="width:36px">
-                                        <input type="checkbox" class="form-check-input" id="checkAllLoc">
-                                    </th>
-                                    <th>Mã vị trí</th>
-                                    <th>Tên vị trí</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($locations as $loc)
-                                <tr>
-                                    <td>
-                                        <input type="checkbox" class="form-check-input loc-check" name="location_ids[]"
-                                            value="{{ $loc->id }}"
-                                            {{ in_array($loc->id, old('location_ids', [])) ? 'checked' : '' }}>
-                                    </td>
-                                    <td class="text-body-secondary small font-monospace">{{ $loc->code }}</td>
-                                    <td>{{ $loc->name }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Theo mặt hàng --}}
-            <div id="scope_3" class="scope-panel d-none">
-                <div class="card">
-                    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-                        <span>
-                            <svg class="icon me-1 text-secondary">
-                                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-tags') }}"></use>
-                            </svg>
-                            Chọn mặt hàng
-                            @error('product_ids')
-                            <span class="text-danger small ms-2">{{ $message }}</span>
-                            @enderror
-                        </span>
-                        <input type="text" class="form-control form-control-sm" id="searchProduct"
-                            placeholder="Tìm mã / tên..." style="width:200px">
-                    </div>
-                    <div class="card-body p-0" style="max-height:380px; overflow-y:auto">
-                        <table class="table table-sm table-hover mb-0" id="tblProducts">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th style="width:36px">
-                                        <input type="checkbox" class="form-check-input" id="checkAllProd">
-                                    </th>
-                                    <th>Mã SP</th>
-                                    <th>Tên sản phẩm</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($products as $prod)
-                                <tr data-search="{{ strtolower($prod->code . ' ' . $prod->name) }}">
-                                    <td>
-                                        <input type="checkbox" class="form-check-input prod-check" name="product_ids[]"
-                                            value="{{ $prod->id }}"
-                                            {{ in_array($prod->id, old('product_ids', [])) ? 'checked' : '' }}>
-                                    </td>
-                                    <td class="text-body-secondary small font-monospace">{{ $prod->code }}</td>
-                                    <td>{{ $prod->name }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-        </div>
+        <small class="text-body-secondary">Điền thông tin và chọn phạm vi kiểm kê</small>
+      </div>
     </div>
 
-    {{-- NÚT SUBMIT --}}
-    <div class="d-flex justify-content-end gap-2 mt-4">
+    @if($errors->any())
+      <div class="alert alert-danger alert-dismissible mb-4">
+        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-warning') }}"></use></svg>
+        <strong>Vui lòng kiểm tra lại:</strong>
+        <ul class="mb-0 mt-1 ps-3">
+          @foreach($errors->all() as $e)
+            <li>{{ $e }}</li>
+          @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
+      </div>
+    @endif
+
+    <form method="POST" action="{{ route('stocktakes.store') }}" id="stocktakeForm">
+      @csrf
+
+      {{-- THÔNG TIN CHUNG --}}
+      <div class="card mb-4">
+        <div class="card-header fw-semibold">Thông tin chung</div>
+        <div class="card-body">
+          <div class="row g-3">
+
+            {{-- Loại kiểm kê --}}
+            <div class="col-12">
+              <label class="form-label fw-semibold">
+                Loại kiểm kê <span class="text-danger">*</span>
+              </label>
+              <div class="d-flex gap-3 flex-wrap">
+                @foreach([1 => ['Toàn kho', 'primary', 'cil-storage'], 2 => ['Theo khu vực', 'info', 'cil-location-pin'], 3 => ['Theo mặt hàng', 'secondary', 'cil-tags']] as $val => [$label, $color, $icon])
+                <div class="flex-fill" style="min-width:160px">
+                  <input type="radio" class="btn-check" name="check_type" id="type_{{ $val }}"
+                         value="{{ $val }}" {{ old('check_type', 1) == $val ? 'checked' : '' }}>
+                  <label class="btn btn-outline-{{ $color }} w-100 d-flex align-items-center gap-2 justify-content-center"
+                         for="type_{{ $val }}">
+                    <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#' . $icon) }}"></use></svg>
+                    {{ $label }}
+                  </label>
+                </div>
+                @endforeach
+              </div>
+              @error('check_type')
+                <div class="text-danger small mt-1">{{ $message }}</div>
+              @enderror
+            </div>
+
+            {{-- Ngày kiểm --}}
+            <div class="col-sm-6">
+              <label class="form-label" for="check_date">
+                Ngày kiểm kê <span class="text-danger">*</span>
+              </label>
+              <input type="date" class="form-control @error('check_date') is-invalid @enderror"
+                     id="check_date" name="check_date"
+                     value="{{ old('check_date', now()->toDateString()) }}">
+              @error('check_date')
+                <div class="invalid-feedback">{{ $message }}</div>
+              @enderror
+            </div>
+
+            {{-- Người phụ trách --}}
+            <div class="col-sm-6">
+              <label class="form-label" for="assigned_to">Người phụ trách</label>
+              <select class="form-select @error('assigned_to') is-invalid @enderror"
+                      id="assigned_to" name="assigned_to">
+                <option value="">— Chọn nhân viên —</option>
+                @foreach($users as $user)
+                  <option value="{{ $user->id }}" {{ old('assigned_to') == $user->id ? 'selected' : '' }}>
+                    {{ $user->name }}
+                  </option>
+                @endforeach
+              </select>
+              @error('assigned_to')
+                <div class="invalid-feedback">{{ $message }}</div>
+              @enderror
+            </div>
+
+            {{-- Ghi chú --}}
+            <div class="col-12">
+              <label class="form-label" for="note">Ghi chú</label>
+              <textarea class="form-control" id="note" name="note"
+                        rows="2" placeholder="Ghi chú thêm...">{{ old('note') }}</textarea>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {{-- PHẠM VI: THEO KHU VỰC --}}
+      <div class="card mb-4 scope-card" id="scope-location" style="display:none">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          <span>Chọn khu vực / vị trí kiểm kê</span>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllLocations()">Chọn tất cả</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearLocations()">Bỏ chọn</button>
+          </div>
+        </div>
+        <div class="card-body">
+          @error('location_ids')
+            <div class="alert alert-danger py-2 mb-3">{{ $message }}</div>
+          @enderror
+          <div class="row g-2" style="max-height:300px; overflow-y:auto">
+            @foreach($locations as $loc)
+            <div class="col-sm-6 col-lg-4">
+              <div class="form-check">
+                <input class="form-check-input location-cb" type="checkbox"
+                       name="location_ids[]" value="{{ $loc->id }}"
+                       id="loc_{{ $loc->id }}"
+                       {{ in_array($loc->id, old('location_ids', [])) ? 'checked' : '' }}>
+                <label class="form-check-label small" for="loc_{{ $loc->id }}">
+                  <span class="fw-semibold">{{ $loc->code }}</span>
+                  @if($loc->name !== $loc->code)
+                    <span class="text-body-secondary">— {{ $loc->name }}</span>
+                  @endif
+                </label>
+              </div>
+            </div>
+            @endforeach
+            @if($locations->isEmpty())
+              <div class="col-12 text-body-secondary small">Không có vị trí nào.</div>
+            @endif
+          </div>
+        </div>
+      </div>
+
+      {{-- PHẠM VI: THEO MẶT HÀNG --}}
+      <div class="card mb-4 scope-card" id="scope-product" style="display:none">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          <span>Chọn mặt hàng kiểm kê</span>
+          <div class="d-flex gap-2">
+            <input type="text" class="form-control form-control-sm" id="productSearch"
+                   placeholder="Tìm mặt hàng..." style="width:180px">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllProducts()">Chọn tất cả</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearProducts()">Bỏ chọn</button>
+          </div>
+        </div>
+        <div class="card-body">
+          @error('product_ids')
+            <div class="alert alert-danger py-2 mb-3">{{ $message }}</div>
+          @enderror
+          <div class="row g-2" id="productList" style="max-height:300px; overflow-y:auto">
+            @foreach($products as $prod)
+            <div class="col-sm-6 col-lg-4 product-item">
+              <div class="form-check">
+                <input class="form-check-input product-cb" type="checkbox"
+                       name="product_ids[]" value="{{ $prod->id }}"
+                       id="prod_{{ $prod->id }}"
+                       {{ in_array($prod->id, old('product_ids', [])) ? 'checked' : '' }}>
+                <label class="form-check-label small" for="prod_{{ $prod->id }}">
+                  <span class="fw-semibold">{{ $prod->code }}</span>
+                  <span class="text-body-secondary d-block" style="font-size:11px">{{ $prod->name }}</span>
+                </label>
+              </div>
+            </div>
+            @endforeach
+            @if($products->isEmpty())
+              <div class="col-12 text-body-secondary small">Không có mặt hàng nào.</div>
+            @endif
+          </div>
+        </div>
+      </div>
+
+      {{-- ACTIONS --}}
+      <div class="d-flex justify-content-end gap-2">
         <a href="{{ route('stocktakes.index') }}" class="btn btn-outline-secondary">Hủy</a>
         <button type="submit" class="btn btn-primary">
-            <svg class="icon me-1">
-                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-save') }}"></use>
-            </svg>
-            Tạo phiếu (Nháp)
+          <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-save') }}"></use></svg>
+          Tạo phiếu kiểm kê
         </button>
-    </div>
+      </div>
 
-</form>
+    </form>
+  </div>
+</div>
 
 @endsection
 
 @push('scripts')
 <script>
-(function() {
-    // Hiển thị/ẩn scope panel theo check_type
-    function switchScope(val) {
-        document.querySelectorAll('.scope-panel').forEach(el => el.classList.add('d-none'));
-        const panel = document.getElementById('scope_' + val);
-        if (panel) panel.classList.remove('d-none');
+  // Hiện/ẩn scope card theo check_type
+  function updateScopeVisibility() {
+    const val = document.querySelector('input[name="check_type"]:checked')?.value;
+    document.getElementById('scope-location').style.display = val == 2 ? '' : 'none';
+    document.getElementById('scope-product').style.display  = val == 3 ? '' : 'none';
+  }
 
-        // Highlight card radio
-        document.querySelectorAll('[id^="card_type_"]').forEach(el => {
-            el.classList.remove('border-primary', 'border-info', 'border-secondary', 'bg-primary-subtle',
-                'bg-info-subtle', 'bg-secondary-subtle');
-        });
-        const colorMap = {
-            1: 'primary',
-            2: 'info',
-            3: 'secondary'
-        };
-        const c = colorMap[val];
-        const card = document.getElementById('card_type_' + val);
-        if (card && c) card.classList.add('border-' + c, 'bg-' + c + '-subtle');
-    }
+  document.querySelectorAll('input[name="check_type"]').forEach(el => {
+    el.addEventListener('change', updateScopeVisibility);
+  });
+  updateScopeVisibility();
 
-    document.querySelectorAll('.check-type-radio').forEach(radio => {
-        radio.addEventListener('change', e => switchScope(e.target.value));
+  // Chọn/bỏ chọn tất cả vị trí
+  function selectAllLocations() {
+    document.querySelectorAll('.location-cb').forEach(cb => cb.checked = true);
+  }
+  function clearLocations() {
+    document.querySelectorAll('.location-cb').forEach(cb => cb.checked = false);
+  }
+
+  // Chọn/bỏ chọn tất cả mặt hàng
+  function selectAllProducts() {
+    document.querySelectorAll('.product-cb:not([style*="display:none"])').forEach(cb => cb.checked = true);
+  }
+  function clearProducts() {
+    document.querySelectorAll('.product-cb').forEach(cb => cb.checked = false);
+  }
+
+  // Tìm kiếm mặt hàng
+  document.getElementById('productSearch')?.addEventListener('input', function () {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('.product-item').forEach(item => {
+      const text = item.textContent.toLowerCase();
+      item.style.display = text.includes(q) ? '' : 'none';
     });
-
-    // Init on page load
-    const checked = document.querySelector('.check-type-radio:checked');
-    if (checked) switchScope(checked.value);
-
-    // Check-all location
-    document.getElementById('checkAllLoc')?.addEventListener('change', function() {
-        document.querySelectorAll('.loc-check').forEach(c => c.checked = this.checked);
-    });
-
-    // Check-all product
-    document.getElementById('checkAllProd')?.addEventListener('change', function() {
-        document.querySelectorAll('.prod-check').forEach(c => c.checked = this.checked);
-    });
-
-    // Search product
-    document.getElementById('searchProduct')?.addEventListener('input', function() {
-        const q = this.value.toLowerCase();
-        document.querySelectorAll('#tblProducts tbody tr').forEach(tr => {
-            tr.style.display = tr.dataset.search.includes(q) ? '' : 'none';
-        });
-    });
-})();
+  });
 </script>
 @endpush
