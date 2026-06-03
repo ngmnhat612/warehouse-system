@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ScrapController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Master\UomController;
@@ -52,7 +53,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ]);
 
         Route::get('product/generate-barcode', [ProductController::class, 'generateBarcode'])
-            ->name('product.generate-barcode');  
+            ->name('product.generate-barcode');
 
         Route::resource('product', ProductController::class)
             ->only(['index', 'store', 'update', 'destroy'])
@@ -109,7 +110,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('employee/user/{user}/activate', [EmployeeController::class, 'activateUser'])
             ->name('employee.user.activate');
-        
+
         Route::delete('employee/user/{user}/reject', [EmployeeController::class, 'rejectUser'])
             ->name('employee.user.reject');
 
@@ -175,6 +176,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('transfers', StockTransferController::class);
     Route::post('transfers/{transfer}/confirm', [StockTransferController::class, 'confirm'])->name('transfers.confirm');
     Route::post('transfers/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('transfers.cancel');
+
+    Route::resource('scraps', ScrapController::class);
+    Route::post('scraps/{scrap}/submit',  [ScrapController::class, 'submit'])->name('scraps.submit');
+    Route::post('scraps/{scrap}/approve', [ScrapController::class, 'approve'])->name('scraps.approve');
+    Route::post('scraps/{scrap}/cancel',  [ScrapController::class, 'cancel'])->name('scraps.cancel');
 
     Route::resource('stocktakes', InventoryCheckController::class);
 
