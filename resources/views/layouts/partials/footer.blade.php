@@ -1,7 +1,7 @@
 <footer class="footer">
-  <div class="container-fluid px-4">
-    <span>Warehouse System &copy; {{ date('Y') }} — Ment Automation</span>
-  </div>
+    <div class="container-fluid px-4">
+        <span>Warehouse System &copy; {{ date('Y') }} — Ment Automation</span>
+    </div>
 </footer>
 
 {{-- CoreUI Bundle (Bootstrap + CoreUI JS) --}}
@@ -14,7 +14,8 @@
 <script src="{{ asset('vendor/coreui/chartjs/chart.umd.js') }}"></script>
 <script src="{{ asset('vendor/coreui/chartjs/coreui-chartjs.js') }}"></script>
 
-<script src="{{ asset('vendor/coreui/js/custom/color-modes.js') }}"></script>
+{{-- Tạm thời comment lại color-modes để tránh lỗi querySelector khi header không có UI switch theme --}}
+{{-- <script src="{{ asset('vendor/coreui/js/custom/color-modes.js') }}"></script> --}}
 
 {{-- Stack JS riêng từng trang --}}
 @stack('scripts')

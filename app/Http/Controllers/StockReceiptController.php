@@ -5,26 +5,28 @@ namespace App\Http\Controllers;
 use App\Models\Location;
 use App\Models\Lot;
 use App\Models\Product;
-use App\Models\Stock;
-use App\Models\StockLedger;
+use App\Models\Serial;
 use App\Models\StockReceipt;
 use App\Models\StockReceiptDetail;
 use App\Models\Supplier;
 use App\Models\Uom;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class StockReceiptController extends Controller
 {
+    public function __construct(private StockService $stockService) {}
+
     // ──────────────────────────────────────────────────────────────────────────
     // DANH SÁCH
     // ──────────────────────────────────────────────────────────────────────────
 
     public function index(Request $request)
     {
-        $query = StockReceipt::with(['supplier', 'creator'])
-            ->withCount('details');
+        //UPDATE
+        $query = StockReceipt::with(['supplier', 'createdBy'])->withCount('details');
 
         if ($search = $request->search) {
             $query->where(function ($q) use ($search) {
@@ -32,22 +34,10 @@ class StockReceiptController extends Controller
                   ->orWhere('reference_no', 'like', "%{$search}%");
             });
         }
-
-        if ($request->receipt_type) {
-            $query->where('receipt_type', $request->receipt_type);
-        }
-
-        if ($request->status !== null && $request->status !== '') {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->date_from) {
-            $query->where('receipt_date', '>=', $request->date_from);
-        }
-
-        if ($request->date_to) {
-            $query->where('receipt_date', '<=', $request->date_to);
-        }
+        if ($request->receipt_type)   $query->where('receipt_type', $request->receipt_type);
+        if ($request->status !== null && $request->status !== '') $query->where('status', $request->status);
+        if ($request->date_from)      $query->where('receipt_date', '>=', $request->date_from);
+        if ($request->date_to)        $query->where('receipt_date', '<=', $request->date_to);
 
         $receipts       = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
         $totalCount     = StockReceipt::count();
@@ -66,16 +56,29 @@ class StockReceiptController extends Controller
 
     public function create()
     {
-        $products  = Product::with('uom')->where('status', 1)->orderBy('code')->get();
-        $suppliers = Supplier::orderBy('name')->get();
-        $locations = Location::orderBy('code')->get();
-        $uoms      = Uom::orderBy('name')->get();
-
-        return view('receipts.form', compact('products', 'suppliers', 'locations', 'uoms'));
+        $products      = Product::with('uom')->where('status', 1)->orderBy('code')->get();
+        $productsJson  = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'code'   => $p->code,
+            'name'   => $p->name,
+            'uom'    => $p->uom?->name ?? '—',
+            'uom_id' => $p->uom_id,
+            'stock'  => (float) ($p->total_stock ?? 0),
+        ])->values();
+                $suppliers     = Supplier::orderBy('name')->get();
+                $locations     = Location::where('type', 1)->orderBy('code')->get();
+                $locationsJson = $locations->map(fn($l) => [
+                    'id'   => $l->id,
+                    'code' => $l->code,
+                    'name' => $l->name ?? '',
+                ])->values();
+                $uoms          = Uom::orderBy('name')->get();
+                $putawayRules = DB::table('putaway_rules')->where('status', 1)->get(['product_id', 'category_id', 'location_dest_id']);
+        return view('receipts.form', compact('productsJson', 'products', 'suppliers', 'locations', 'locationsJson', 'uoms', 'putawayRules'));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // LƯU PHIẾU MỚI
+    // LƯU PHIẾU MỚI (→ DRAFT)
     // ──────────────────────────────────────────────────────────────────────────
 
     public function store(Request $request)
@@ -83,7 +86,6 @@ class StockReceiptController extends Controller
         $this->validateReceipt($request);
 
         DB::transaction(function () use ($request) {
-            // Sinh mã tự động nếu để trống
             $code = $request->code
                 ? strtoupper(trim($request->code))
                 : $this->generateCode();
@@ -94,7 +96,7 @@ class StockReceiptController extends Controller
                 'supplier_id'  => $request->supplier_id ?: null,
                 'reference_no' => $request->reference_no ?: null,
                 'receipt_date' => $request->receipt_date,
-                'status'       => 1, // Draft
+                'status'       => 1, // DRAFT
                 'note'         => $request->note ?: null,
                 'created_by'   => Auth::id(),
             ]);
@@ -103,7 +105,6 @@ class StockReceiptController extends Controller
         });
 
         $action = $request->input('action');
-
         return $action === 'save_and_new'
             ? redirect()->route('receipts.create')->with('success', 'Đã tạo phiếu nhập thành công.')
             : redirect()->route('receipts.index')->with('success', 'Đã tạo phiếu nhập thành công.');
@@ -116,9 +117,7 @@ class StockReceiptController extends Controller
     public function show(StockReceipt $receipt)
     {
         $receipt->load([
-            'supplier',
-            'creator',
-            'confirmer',
+            'supplier', 'createdBy', 'confirmedBy',
             'details.product.uom',
             'details.location',
             'details.lot',
@@ -134,19 +133,36 @@ class StockReceiptController extends Controller
 
     public function edit(StockReceipt $receipt)
     {
-        // Chỉ cho sửa khi còn Draft
-        if ($receipt->status !== 1) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_DRAFT) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Draft.');
         }
 
         $receipt->load(['details.product', 'details.location', 'details.lot', 'details.uom']);
-        $products  = Product::with('uom')->where('status', 1)->orderBy('code')->get();
-        $suppliers = Supplier::orderBy('name')->get();
-        $locations = Location::orderBy('code')->get();
-        $uoms      = Uom::orderBy('name')->get();
 
-        return view('receipts.form', compact('receipt', 'products', 'suppliers', 'locations', 'uoms'));
+        $products      = Product::with('uom')->where('status', 1)->orderBy('code')->get();
+        $productsJson  = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'code'   => $p->code,
+            'name'   => $p->name,
+            'uom'    => $p->uom?->name ?? '—',
+            'uom_id' => $p->uom_id,
+            'stock'  => (float) ($p->total_stock ?? 0),
+        ])->values();
+        $suppliers     = Supplier::orderBy('name')->get();
+        $locations     = Location::where('type', 1)->orderBy('code')->get();
+        $locationsJson = $locations->map(fn($l) => [
+            'id'   => $l->id,
+            'code' => $l->code,
+            'name' => $l->name ?? '',
+        ])->values();
+        $uoms         = Uom::orderBy('name')->get();
+        $putawayRules = DB::table('putaway_rules')->where('status', 1)->get(['product_id', 'category_id', 'location_dest_id']);
+
+        return view('receipts.form', compact(
+            'receipt', 'products', 'productsJson', 'suppliers',
+            'locations', 'locationsJson', 'uoms', 'putawayRules'
+        ));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -155,7 +171,7 @@ class StockReceiptController extends Controller
 
     public function update(Request $request, StockReceipt $receipt)
     {
-        if ($receipt->status !== 1) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_DRAFT) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Draft.');
         }
@@ -171,7 +187,6 @@ class StockReceiptController extends Controller
                 'note'         => $request->note ?: null,
             ]);
 
-            // Xóa chi tiết cũ và ghi lại
             $receipt->details()->delete();
             $this->saveDetails($receipt, $request->details ?? []);
         });
@@ -186,13 +201,12 @@ class StockReceiptController extends Controller
 
     public function destroy(StockReceipt $receipt)
     {
-        if ($receipt->status !== 1) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_DRAFT) {
             return redirect()->route('receipts.index')
                 ->with('error', "Không thể xóa phiếu {$receipt->code} vì không ở trạng thái Draft.");
         }
 
         $code = $receipt->code;
-
         DB::transaction(function () use ($receipt) {
             $receipt->details()->delete();
             $receipt->delete();
@@ -203,81 +217,126 @@ class StockReceiptController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // DUYỆT PHIẾU → Completed & cập nhật tồn kho
+    // CHUYỂN TRẠNG THÁI: DRAFT → PENDING (Gửi duyệt)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function submit(StockReceipt $receipt)
+    {
+        if ((int) $receipt->status !== StockReceipt::STATUS_DRAFT) {
+            return redirect()->route('receipts.show', $receipt)
+                ->with('error', 'Chỉ có thể gửi duyệt phiếu đang ở trạng thái Draft.');
+        }
+
+        if ($receipt->details()->count() === 0) {
+            return redirect()->route('receipts.show', $receipt)
+                ->with('error', 'Phiếu chưa có hàng hóa. Vui lòng thêm ít nhất một dòng.');
+        }
+
+        $receipt->update(['status' => 2]); // PENDING
+
+        return redirect()->route('receipts.show', $receipt)
+            ->with('success', "Phiếu {$receipt->code} đã được gửi duyệt.");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // CHUYỂN TRẠNG THÁI: PENDING → APPROVED (Duyệt phiếu)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function approve(StockReceipt $receipt)
+    {
+        if ((int) $receipt->status !== StockReceipt::STATUS_PENDING) {
+            return redirect()->route('receipts.show', $receipt)
+                ->with('error', 'Chỉ có thể duyệt phiếu đang ở trạng thái Chờ duyệt.');
+        }
+
+        $receipt->update([
+            'status'       => 3, // APPROVED
+            'confirmed_by' => Auth::id(),
+        ]);
+
+        return redirect()->route('receipts.show', $receipt)
+            ->with('success', "Phiếu {$receipt->code} đã được duyệt. Tiến hành nhận hàng để hoàn tất.");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // CHUYỂN TRẠNG THÁI: APPROVED → COMPLETED (Nhận hàng & cập nhật tồn kho)
     // ──────────────────────────────────────────────────────────────────────────
 
     public function confirm(StockReceipt $receipt)
     {
-        if (!in_array($receipt->status, [1, 2])) {
+        if ((int) $receipt->status !== StockReceipt::STATUS_APPROVED) {
             return redirect()->route('receipts.show', $receipt)
-                ->with('error', 'Phiếu không ở trạng thái có thể duyệt.');
+                ->with('error', 'Chỉ có thể hoàn tất phiếu đã ở trạng thái Đã duyệt.');
         }
 
-        DB::transaction(function () use ($receipt) {
-            $receipt->load('details.product');
+        try {
+            DB::transaction(function () use ($receipt) {
+                $receipt->load('details.product');
 
-            foreach ($receipt->details as $detail) {
-                $qty = $detail->actual_qty ?? $detail->expected_qty;
+                foreach ($receipt->details as $detail) {
+                    $qty = $detail->actual_qty ?? $detail->expected_qty;
 
-                if ($qty <= 0) {
-                    continue;
+                    if ($qty <= 0) continue;
+
+                    // Xử lý Lot / Serial theo tracking_type của sản phẩm
+                    $lotId    = null;
+                    $serialId = null;
+                    $product  = $detail->product;
+
+                    if ($product?->tracking_type === Product::TRACKING_LOT || $product?->tracking_type === Product::TRACKING_LOT_AND_SERIAL) {
+                        if ($detail->lot_id) {
+                            $lotId = $detail->lot_id;
+                        } elseif ($detail->lot_number ?? null) {
+                            $lot = Lot::firstOrCreate(
+                                ['product_id' => $detail->product_id, 'lot_number' => $detail->lot_number],
+                                [
+                                    'supplier_id'   => $receipt->supplier_id,
+                                    'received_date' => $receipt->receipt_date,
+                                    'expiry_date'   => $detail->expiry_date,
+                                    'status'        => Lot::STATUS_ACTIVE,
+                                ]
+                            );
+                            $lotId = $lot->id;
+                        }
+                    }
+
+                    if ($product?->tracking_type === Product::TRACKING_SERIAL || $product?->tracking_type === Product::TRACKING_LOT_AND_SERIAL) {
+                        if ($detail->serial_id) {
+                            $serialId = $detail->serial_id;
+                        }
+                    }
+
+                    // Gọi StockService::increase() — đây là điểm duy nhất cập nhật tồn kho
+                    $this->stockService->increase([
+                        'product_id'       => $detail->product_id,
+                        'location_id'      => $detail->location_id ?? $this->defaultLocationId(),
+                        'quantity'         => $qty,
+                        'lot_id'           => $lotId,
+                        'serial_id'        => $serialId,
+                        'supplier_id'      => $receipt->supplier_id,
+                        'received_date'    => $receipt->receipt_date,
+                        'expiry_date'      => $detail->expiry_date,
+                        'transaction_type' => StockService::TYPE_RECEIPT,
+                        'reference_id'     => $receipt->id,
+                        'reference_type'   => 'stock_receipt',
+                        'reference_code'   => $receipt->code,
+                        'note'             => "Nhập kho từ phiếu {$receipt->code}",
+                        'created_by'       => Auth::id(),
+                    ]);
+
+                    // Cập nhật actual_qty vào detail
+                    $detail->update(['actual_qty' => $qty]);
                 }
 
-                // 1. Tìm hoặc tạo lot nếu có lot_number
-                $lotId = null;
-                if ($detail->lot_id) {
-                    $lotId = $detail->lot_id;
-                }
-
-                // 2. Upsert bản ghi stock
-                $stock = Stock::firstOrNew([
-                    'product_id'  => $detail->product_id,
-                    'location_id' => $detail->location_id ?? $this->defaultLocationId(),
-                    'lot_id'      => $lotId,
-                    'serial_id'   => null,
-                ]);
-
-                $balanceBefore = $stock->quantity ?? 0;
-                $stock->quantity      = ($stock->quantity ?? 0) + $qty;
-                $stock->supplier_id   = $receipt->supplier_id;
-                $stock->received_date = $receipt->receipt_date;
-                $stock->expiry_date   = $detail->expiry_date;
-                $stock->status        = 1;
-                $stock->updated_at    = now();
-                $stock->save();
-
-                // 3. Ghi stock_ledger
-                StockLedger::create([
-                    'product_id'       => $detail->product_id,
-                    'stock_id'         => $stock->id,
-                    'lot_id'           => $lotId,
-                    'serial_id'        => null,
-                    'location_id'      => $stock->location_id,
-                    'transaction_type' => 'RECEIPT',
-                    'reference_id'     => $receipt->id,
-                    'reference_type'   => 'stock_receipt',
-                    'reference_code'   => $receipt->code,
-                    'direction'        => 1, // In
-                    'quantity'         => $qty,
-                    'balance_after'    => $stock->quantity,
-                    'created_by'       => Auth::id(),
-                    'note'             => "Nhập kho từ phiếu {$receipt->code}",
-                    'transaction_date' => now(),
-                ]);
-
-                // 4. Cập nhật actual_qty vào detail
-                $detail->update(['actual_qty' => $qty]);
-            }
-
-            // 5. Cập nhật trạng thái phiếu
-            $receipt->update([
-                'status'       => 4, // Completed
-                'confirmed_by' => Auth::id(),
-            ]);
-        });
+                $receipt->update(['status' => 4]); // COMPLETED
+            });
+        } catch (\Exception $e) {
+            return redirect()->route('receipts.show', $receipt)
+                ->with('error', 'Lỗi khi hoàn tất phiếu: ' . $e->getMessage());
+        }
 
         return redirect()->route('receipts.show', $receipt)
-            ->with('success', "Phiếu {$receipt->code} đã được duyệt và cập nhật tồn kho.");
+            ->with('success', "Phiếu {$receipt->code} đã hoàn tất. Tồn kho đã được cập nhật.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -286,12 +345,12 @@ class StockReceiptController extends Controller
 
     public function cancel(StockReceipt $receipt)
     {
-        if ($receipt->status === 4) {
+        if ((int) $receipt->status === StockReceipt::STATUS_COMPLETED) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Không thể hủy phiếu đã hoàn thành. Vui lòng tạo phiếu điều chỉnh.');
         }
 
-        if ($receipt->status === 5) {
+        if ((int) $receipt->status === StockReceipt::STATUS_CANCELLED) {
             return redirect()->route('receipts.show', $receipt)
                 ->with('error', 'Phiếu đã được hủy trước đó.');
         }
@@ -303,12 +362,22 @@ class StockReceiptController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // AJAX: Gợi ý vị trí lưu kho (Putaway)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function suggestPutaway(Request $request)
+    {
+        $productId  = (int) $request->product_id;
+        $product    = Product::find($productId);
+        $locationId = $this->stockService->suggestPutawayLocation($productId, $product?->category_id ?? 0);
+
+        return response()->json(['location_id' => $locationId]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ──────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Validate dữ liệu phiếu nhập.
-     */
     private function validateReceipt(Request $request, bool $isUpdate = false): void
     {
         $codeRule = $isUpdate
@@ -316,50 +385,44 @@ class StockReceiptController extends Controller
             : 'nullable|string|max:50|unique:stock_receipts,code';
 
         $request->validate([
-            'code'                        => $codeRule,
-            'receipt_type'                => 'required|in:1,2,3',
-            'supplier_id'                 => 'nullable|exists:suppliers,id',
-            'reference_no'                => 'nullable|string|max:100',
-            'receipt_date'                => 'required|date',
-            'note'                        => 'nullable|string|max:1000',
-            'details'                     => 'required|array|min:1',
-            'details.*.product_id'        => 'required|exists:products,id',
-            'details.*.uom_id'            => 'required|exists:uoms,id',
-            'details.*.expected_qty'      => 'required|numeric|min:0.001',
-            'details.*.actual_qty'        => 'nullable|numeric|min:0',
-            'details.*.location_id'       => 'nullable|exists:locations,id',
-            'details.*.lot_number'        => 'nullable|string|max:50',
-            'details.*.expiry_date'       => 'nullable|date',
+            'code'                           => $codeRule,
+            'receipt_type'                   => 'required|in:1,2,3',
+            'supplier_id'                    => 'nullable|exists:suppliers,id',
+            'reference_no'                   => 'nullable|string|max:100',
+            'receipt_date'                   => 'required|date',
+            'note'                           => 'nullable|string|max:1000',
+            'details'                        => 'required|array|min:1',
+            'details.*.product_id'           => 'required|exists:products,id',
+            'details.*.uom_id'               => 'required|exists:uoms,id',
+            'details.*.expected_qty'         => 'required|numeric|min:0.001',
+            'details.*.actual_qty'           => 'nullable|numeric|min:0',
+            'details.*.location_id'          => 'nullable|exists:locations,id',
+            'details.*.lot_number'           => 'nullable|string|max:50',
+            'details.*.expiry_date'          => 'nullable|date',
         ], [
-            'code.unique'                 => 'Mã phiếu đã tồn tại.',
-            'receipt_type.required'       => 'Vui lòng chọn loại nhập.',
-            'receipt_date.required'       => 'Vui lòng chọn ngày nhập.',
-            'supplier_id.exists'          => 'Nhà cung cấp không hợp lệ.',
-            'details.required'            => 'Phiếu nhập phải có ít nhất một hàng hóa.',
-            'details.min'                 => 'Phiếu nhập phải có ít nhất một hàng hóa.',
-            'details.*.product_id.required' => 'Vui lòng chọn hàng hóa.',
-            'details.*.product_id.exists'   => 'Hàng hóa không hợp lệ.',
-            'details.*.uom_id.required'     => 'Vui lòng chọn đơn vị tính.',
-            'details.*.expected_qty.required' => 'Vui lòng nhập số lượng dự kiến.',
-            'details.*.expected_qty.min'      => 'Số lượng phải lớn hơn 0.',
+            'code.unique'                    => 'Mã phiếu đã tồn tại.',
+            'receipt_type.required'          => 'Vui lòng chọn loại nhập.',
+            'receipt_date.required'          => 'Vui lòng chọn ngày nhập.',
+            'details.required'               => 'Phiếu nhập phải có ít nhất một hàng hóa.',
+            'details.*.product_id.required'  => 'Vui lòng chọn hàng hóa.',
+            'details.*.uom_id.required'      => 'Vui lòng chọn đơn vị tính.',
+            'details.*.expected_qty.required'=> 'Vui lòng nhập số lượng dự kiến.',
+            'details.*.expected_qty.min'     => 'Số lượng phải lớn hơn 0.',
         ]);
     }
 
     /**
-     * Lưu các dòng chi tiết phiếu nhập.
-     * Tự tạo/tìm Lot nếu hàng hóa có tracking_type = Lot.
+     * Lưu chi tiết phiếu nhập.
+     * Tự động tạo/tìm Lot nếu tracking_type = Lot.
      */
     private function saveDetails(StockReceipt $receipt, array $details): void
     {
         foreach ($details as $row) {
-            if (empty($row['product_id']) || empty($row['expected_qty'])) {
-                continue;
-            }
+            if (empty($row['product_id']) || empty($row['expected_qty'])) continue;
 
             $product = Product::find($row['product_id']);
             $lotId   = null;
 
-            // Tự tạo/tìm lot nếu có lot_number và product tracking = Lot
             if (
                 !empty($row['lot_number']) &&
                 in_array($product?->tracking_type, [
@@ -368,12 +431,9 @@ class StockReceiptController extends Controller
                 ])
             ) {
                 $lot = Lot::firstOrCreate(
+                    ['product_id' => $row['product_id'], 'lot_number' => trim($row['lot_number'])],
                     [
-                        'product_id' => $row['product_id'],
-                        'lot_number' => trim($row['lot_number']),
-                    ],
-                    [
-                        'supplier_id'  => $receipt->supplier_id,
+                        'supplier_id'   => $receipt->supplier_id,
                         'received_date' => $receipt->receipt_date,
                         'expiry_date'   => $row['expiry_date'] ?? null,
                         'status'        => Lot::STATUS_ACTIVE,
@@ -382,12 +442,21 @@ class StockReceiptController extends Controller
                 $lotId = $lot->id;
             }
 
+            // Gợi ý vị trí putaway nếu user chưa chọn
+            $locationId = $row['location_id'] ?: null;
+            if (!$locationId && $product) {
+                $locationId = $this->stockService->suggestPutawayLocation(
+                    $product->id,
+                    $product->category_id
+                );
+            }
+
             StockReceiptDetail::create([
                 'stock_receipt_id' => $receipt->id,
                 'product_id'       => $row['product_id'],
                 'uom_id'           => $row['uom_id'],
                 'lot_id'           => $lotId,
-                'location_id'      => $row['location_id'] ?: null,
+                'location_id'      => $locationId,
                 'expected_qty'     => $row['expected_qty'],
                 'actual_qty'       => $row['actual_qty'] ?: null,
                 'expiry_date'      => $row['expiry_date'] ?: null,
@@ -397,26 +466,18 @@ class StockReceiptController extends Controller
         }
     }
 
-    /**
-     * Sinh mã phiếu theo format NK-YYYYMM-XXXX.
-     */
     private function generateCode(): string
     {
         $prefix = 'NK-' . now()->format('Ym') . '-';
         $last   = StockReceipt::where('code', 'like', $prefix . '%')
                       ->orderByDesc('code')
                       ->value('code');
-
         $seq = $last ? ((int) substr($last, -4)) + 1 : 1;
-
         return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Lấy vị trí mặc định (vị trí đầu tiên trong DB).
-     */
     private function defaultLocationId(): int
     {
-        return Location::orderBy('id')->value('id') ?? 1;
+        return Location::where('type', 1)->orderBy('id')->value('id') ?? 1;
     }
 }

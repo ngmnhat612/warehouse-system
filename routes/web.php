@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ScrapController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Master\UomController;
@@ -53,7 +54,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ]);
 
         Route::get('product/generate-barcode', [ProductController::class, 'generateBarcode'])
-            ->name('product.generate-barcode');  
+            ->name('product.generate-barcode');
 
         Route::resource('product', ProductController::class)
             ->only(['index', 'store', 'update', 'destroy'])
@@ -110,7 +111,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('employee/user/{user}/activate', [EmployeeController::class, 'activateUser'])
             ->name('employee.user.activate');
-        
+
         Route::delete('employee/user/{user}/reject', [EmployeeController::class, 'rejectUser'])
             ->name('employee.user.reject');
 
@@ -134,7 +135,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 'update'  => 'putaway_rule.update',
                 'destroy' => 'putaway_rule.destroy',
             ]);
- 
+
         // Reorder Rules — quy tắc cảnh báo / tái đặt hàng
         Route::resource('reorder_rule', ReorderRuleController::class)
             ->only(['index', 'store', 'update', 'destroy'])
@@ -166,21 +167,29 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/alerts/near-expiry/export/excel', [ReportAlertController::class, 'nearExpiryExportExcel'])->name('alerts.near_expiry.excel');
     Route::get('/alerts/near-expiry/export/pdf',   [ReportAlertController::class, 'nearExpiryExportPdf'])->name('alerts.near_expiry.pdf');
     });
-    
+
     // ── NHẬT KÝ HỆ THỐNG ──────────────────────────────────────────────
     Route::prefix('activity-log')->name('activity-log.')->group(function () {
         Route::get('/',        [ActivityLogController::class, 'index'])->name('index');
         Route::get('/export',  [ActivityLogController::class, 'export'])->name('export');
     });
 
+    Route::get('receipts/suggest-putaway',    [StockReceiptController::class, 'suggestPutaway'])->name('receipts.suggest-putaway');
     Route::resource('receipts', StockReceiptController::class);
+    Route::post('receipts/{receipt}/submit',  [StockReceiptController::class, 'submit'])->name('receipts.submit');
+    Route::post('receipts/{receipt}/approve', [StockReceiptController::class, 'approve'])->name('receipts.approve');
     Route::post('receipts/{receipt}/confirm', [StockReceiptController::class, 'confirm'])->name('receipts.confirm');
     Route::post('receipts/{receipt}/cancel',  [StockReceiptController::class, 'cancel'])->name('receipts.cancel');
 
+    Route::get('issues/stock-locations/{productId}', [StockIssueController::class, 'stockLocations'])
+    ->name('issues.stockLocations');
     Route::resource('issues', StockIssueController::class);
+    Route::post('issues/{issue}/submit',  [StockIssueController::class, 'submit'])->name('issues.submit');
+    Route::post('issues/{issue}/approve', [StockIssueController::class, 'approve'])->name('issues.approve');
     Route::post('issues/{issue}/confirm', [StockIssueController::class, 'confirm'])->name('issues.confirm');
     Route::post('issues/{issue}/cancel',  [StockIssueController::class, 'cancel'])->name('issues.cancel');
 
+    Route::get('transfers/stock-locations', [StockTransferController::class, 'stockLocations'])->name('transfers.stock-locations');
     Route::resource('transfers', StockTransferController::class);
     Route::post('transfers/{transfer}/confirm', [StockTransferController::class, 'confirm'])->name('transfers.confirm');
     Route::post('transfers/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('transfers.cancel');
@@ -210,13 +219,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/ledger/export', [InventoryController::class, 'exportLedger'])->name('ledger.export');
         Route::get('/locations',     [InventoryController::class, 'locations'])->name('locations');
     });
-    
+
 });
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('transfers/{transfer}/print', [StockTransferController::class, 'printPdf'])->name('transfers.print');
+    Route::get('scraps/{scrap}/print',       [ScrapController::class,       'printPdf'])->name('scraps.print');
 });
 
 require __DIR__.'/auth.php';

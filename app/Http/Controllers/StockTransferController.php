@@ -6,6 +6,7 @@ use App\Models\Location;
 use App\Models\Lot;
 use App\Models\Product;
 use App\Models\Stock;
+use App\Services\StockService;
 use App\Models\StockLedger;
 use App\Models\StockTransfer;
 use App\Models\StockTransferDetail;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 
 class StockTransferController extends Controller
 {
+    public function __construct(private StockService $stockService) {}
+
     // ──────────────────────────────────────────────────────────────────────────
     // DANH SÁCH
     // ──────────────────────────────────────────────────────────────────────────
@@ -70,7 +73,26 @@ class StockTransferController extends Controller
             ->get()
             ->groupBy('product_id');
 
-        return view('transfers.form', compact('products', 'locations', 'lots'));
+        $productsJson  = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'code'   => $p->code,
+            'name'   => $p->name,
+            'uom'    => $p->uom?->name ?? '—',
+            'uom_id' => $p->uom_id,
+        ])->values();
+
+        $locationsJson = $locations->map(fn($l) => [
+            'id'   => $l->id,
+            'code' => $l->code,
+            'name' => $l->name ?? '',
+        ])->values();
+
+        $lotsJson = $lots->map(fn($g) => $g->values());
+
+        return view('transfers.form', compact(
+            'products', 'locations', 'lots',
+            'productsJson', 'locationsJson', 'lotsJson'
+        ));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -125,6 +147,24 @@ class StockTransferController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // IN PHIẾU CHUYỂN KHO (PDF / Browser Print)
+    // ──────────────────────────────────────────────────────────────────────────
+    public function printPdf(StockTransfer $transfer)
+    {
+        $transfer->load([
+            'createdBy',
+            'confirmedBy',
+            'details.product.uom',
+            'details.fromLocation',
+            'details.toLocation',
+            'details.lot',
+            'details.uom',
+        ]);
+
+        return view('transfers.print', compact('transfer'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // FORM CHỈNH SỬA
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -146,7 +186,26 @@ class StockTransferController extends Controller
             ->get()
             ->groupBy('product_id');
 
-        return view('transfers.form', compact('transfer', 'products', 'locations', 'lots'));
+        $productsJson  = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'code'   => $p->code,
+            'name'   => $p->name,
+            'uom'    => $p->uom?->name ?? '—',
+            'uom_id' => $p->uom_id,
+        ])->values();
+
+        $locationsJson = $locations->map(fn($l) => [
+            'id'   => $l->id,
+            'code' => $l->code,
+            'name' => $l->name ?? '',
+        ])->values();
+
+        $lotsJson = $lots->map(fn($g) => $g->values());
+
+        return view('transfers.form', compact(
+            'transfer', 'products', 'locations', 'lots',
+            'productsJson', 'locationsJson', 'lotsJson'
+        ));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -219,102 +278,47 @@ class StockTransferController extends Controller
                 ->with('error', 'Không đủ tồn kho tại vị trí nguồn: ' . implode('; ', $errors));
         }
 
-        DB::transaction(function () use ($transfer) {
-            foreach ($transfer->details as $detail) {
-                $qty = $detail->quantity;
-                if ($qty <= 0) {
-                    continue;
+        try {
+            DB::transaction(function () use ($transfer) {
+                foreach ($transfer->details as $detail) {
+                    $qty = $detail->quantity;
+                    if ($qty <= 0) continue;
+
+                    $baseParams = [
+                        'product_id'       => $detail->product_id,
+                        'lot_id'           => $detail->lot_id,
+                        'serial_id'        => $detail->serial_id ?? null,
+                        'transaction_type' => StockService::TYPE_TRANSFER,
+                        'reference_id'     => $transfer->id,
+                        'reference_type'   => 'stock_transfer',
+                        'reference_code'   => $transfer->code,
+                        'note'             => "Chuyển kho phiếu {$transfer->code}",
+                        'created_by'       => Auth::id(),
+                    ];
+
+                    // Trừ kho nguồn
+                    $this->stockService->decrease(array_merge($baseParams, [
+                        'location_id' => $detail->from_location_id,
+                        'quantity'    => $qty,
+                    ]));
+
+                    // Cộng kho đích
+                    $this->stockService->increase(array_merge($baseParams, [
+                        'location_id'   => $detail->to_location_id,
+                        'quantity'      => $qty,
+                        'received_date' => $transfer->transfer_date,
+                    ]));
                 }
 
-                // ── Tìm stock tại vị trí NGUỒN ──
-                $fromStock = Stock::where('product_id', $detail->product_id)
-                    ->where('location_id', $detail->from_location_id)
-                    ->when($detail->lot_id, fn($q) => $q->where('lot_id', $detail->lot_id))
-                    ->when(!$detail->lot_id, fn($q) => $q->whereNull('lot_id'))
-                    ->first();
-
-                if (!$fromStock) {
-                    throw new \Exception("Không tìm thấy tồn kho cho sản phẩm ID {$detail->product_id} tại vị trí nguồn.");
-                }
-
-                // Trừ tồn kho nguồn
-                $fromStock->quantity -= $qty;
-                $fromStock->updated_at = now();
-                $fromStock->save();
-
-                // ── Cập nhật stock tại vị trí ĐÍCH ──
-                $toStock = Stock::where('product_id', $detail->product_id)
-                    ->where('location_id', $detail->to_location_id)
-                    ->when($detail->lot_id, fn($q) => $q->where('lot_id', $detail->lot_id))
-                    ->when(!$detail->lot_id, fn($q) => $q->whereNull('lot_id'))
-                    ->first();
-
-                if ($toStock) {
-                    $toStock->quantity += $qty;
-                    $toStock->updated_at = now();
-                    $toStock->save();
-                } else {
-                    // Tạo dòng stock mới tại vị trí đích
-                    $toStock = Stock::create([
-                        'product_id'     => $detail->product_id,
-                        'location_id'    => $detail->to_location_id,
-                        'lot_id'         => $detail->lot_id,
-                        'serial_id'      => $detail->serial_id,
-                        'quantity'       => $qty,
-                        'reserved_qty'   => 0,
-                        'supplier_id'    => $fromStock->supplier_id,
-                        'manufacture_date' => $fromStock->manufacture_date,
-                        'received_date'  => $fromStock->received_date,
-                        'expiry_date'    => $fromStock->expiry_date,
-                        'status'         => $fromStock->status,
-                        'updated_at'     => now(),
-                    ]);
-                }
-
-                // ── Ghi stock_ledger: OUT tại nguồn ──
-                StockLedger::create([
-                    'product_id'       => $detail->product_id,
-                    'stock_id'         => $fromStock->id,
-                    'lot_id'           => $detail->lot_id,
-                    'serial_id'        => $detail->serial_id ?? null,
-                    'location_id'      => $detail->from_location_id,
-                    'transaction_type' => 'TRANSFER',
-                    'reference_id'     => $transfer->id,
-                    'reference_type'   => 'stock_transfer',
-                    'reference_code'   => $transfer->code,
-                    'direction'        => 2, // OUT
-                    'quantity'         => $qty,
-                    'balance_after'    => $fromStock->quantity,
-                    'created_by'       => Auth::id(),
-                    'note'             => "Chuyển kho từ {$detail->fromLocation?->code} - phiếu {$transfer->code}",
-                    'transaction_date' => now(),
+                $transfer->update([
+                    'status'       => StockTransfer::STATUS_COMPLETED,
+                    'confirmed_by' => Auth::id(),
                 ]);
-
-                // ── Ghi stock_ledger: IN tại đích ──
-                StockLedger::create([
-                    'product_id'       => $detail->product_id,
-                    'stock_id'         => $toStock->id,
-                    'lot_id'           => $detail->lot_id,
-                    'serial_id'        => $detail->serial_id ?? null,
-                    'location_id'      => $detail->to_location_id,
-                    'transaction_type' => 'TRANSFER',
-                    'reference_id'     => $transfer->id,
-                    'reference_type'   => 'stock_transfer',
-                    'reference_code'   => $transfer->code,
-                    'direction'        => 1, // IN
-                    'quantity'         => $qty,
-                    'balance_after'    => $toStock->quantity,
-                    'created_by'       => Auth::id(),
-                    'note'             => "Chuyển kho đến {$detail->toLocation?->code} - phiếu {$transfer->code}",
-                    'transaction_date' => now(),
-                ]);
-            }
-
-            $transfer->update([
-                'status'       => StockTransfer::STATUS_COMPLETED,
-                'confirmed_by' => Auth::id(),
-            ]);
-        });
+            });
+        } catch (\Exception $e) {
+            return redirect()->route('transfers.show', $transfer)
+                ->with('error', 'Lỗi khi xác nhận chuyển kho: ' . $e->getMessage());
+        }
 
         return redirect()->route('transfers.show', $transfer)
             ->with('success', "Phiếu {$transfer->code} đã được xác nhận và cập nhật tồn kho.");
@@ -340,6 +344,29 @@ class StockTransferController extends Controller
 
         return redirect()->route('transfers.show', $transfer)
             ->with('success', "Đã hủy phiếu {$transfer->code}.");
+    }
+
+    /**
+     * AJAX: Trả về danh sách vị trí có tồn kho khả dụng cho một sản phẩm.
+     */
+    public function stockLocations(Request $request)
+    {
+        $request->validate(['product_id' => 'required|integer|exists:products,id']);
+
+        $locations = Stock::with('location')
+            ->where('product_id', $request->product_id)
+            ->whereHas('location', fn($q) => $q->where('type', 1)->where('status', 1))
+            ->whereRaw('quantity - reserved_qty > 0')
+            ->get()
+            ->map(fn($s) => [
+                'location_id'   => $s->location_id,
+                'code'          => $s->location?->code,
+                'name'          => $s->location?->name ?? '',
+                'lot_id'        => $s->lot_id,
+                'available_qty' => round($s->quantity - $s->reserved_qty, 3),
+            ]);
+
+        return response()->json($locations);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -409,27 +436,30 @@ class StockTransferController extends Controller
     {
         $errors = [];
 
-        // Gom nhóm SL theo product_id + from_location_id + lot_id
+        // Gom nhóm SL theo (product_id, from_location_id, lot_id)
+        // Dùng array key phức hợp để tránh lỗi explode khi lot_id = null
         $needed = [];
         foreach ($transfer->details as $detail) {
-            $key = "{$detail->product_id}_{$detail->from_location_id}_{$detail->lot_id}";
-            $needed[$key] = ($needed[$key] ?? 0) + $detail->quantity;
+            $key = $detail->product_id . '|' . $detail->from_location_id . '|' . ($detail->lot_id ?? '');
+            $needed[$key] = ($needed[$key] ?? 0) + (float) $detail->quantity;
         }
 
         foreach ($needed as $key => $qty) {
-            [$productId, $locationId, $lotId] = explode('_', $key);
+            [$productId, $locationId, $lotId] = explode('|', $key);
+            $lotId = $lotId !== '' ? (int) $lotId : null;
 
-            $available = Stock::where('product_id', $productId)
-                ->where('location_id', $locationId)
-                ->when($lotId, fn($q) => $q->where('lot_id', $lotId))
-                ->when(!$lotId, fn($q) => $q->whereNull('lot_id'))
-                ->sum('quantity');
+            // Dùng getAvailableQty() của StockService — đã được kiểm chứng đúng
+            $available = $this->stockService->getAvailableQty(
+                (int) $productId,
+                (int) $locationId,
+                $lotId
+            );
 
             if ($available < $qty) {
                 $product  = Product::find($productId);
                 $location = Location::find($locationId);
                 $errors[] = sprintf(
-                    '%s tại %s: cần %.3f, tồn kho %.3f',
+                    '%s tại %s: cần %.3f, khả dụng %.3f',
                     $product?->name ?? "ID {$productId}",
                     $location?->code ?? "Loc {$locationId}",
                     $qty,
