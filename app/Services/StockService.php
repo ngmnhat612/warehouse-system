@@ -241,26 +241,35 @@ class StockService
      */
     public function findOrCreateStock(array $params): Stock
     {
-        return Stock::firstOrCreate(
-            [
-                'product_id'  => $params['product_id'],
-                'location_id' => $params['location_id'],
-                'lot_id'      => $params['lot_id'] ?? null,
-                'serial_id'   => $params['serial_id'] ?? null,
-            ],
-            [
-                'quantity'         => 0,
-                'reserved_qty'     => 0,
-                'supplier_id'      => $params['supplier_id'] ?? null,
-                'manufacture_date' => $params['manufacture_date'] ?? null,
-                'received_date'    => $params['received_date'] ?? now()->toDateString(),
-                'expiry_date'      => $params['expiry_date'] ?? null,
-                'status'           => self::STOCK_STATUS_NORMAL,
-                'updated_at'       => now(),
-            ]
-        );
+        try {
+            return Stock::firstOrCreate(
+                [
+                    'product_id'  => $params['product_id'],
+                    'location_id' => $params['location_id'],
+                    'lot_id'      => $params['lot_id'] ?? null,
+                    'serial_id'   => $params['serial_id'] ?? null,
+                ],
+                [
+                    'quantity'         => 0,
+                    'reserved_qty'     => 0,
+                    'supplier_id'      => $params['supplier_id'] ?? null,
+                    'manufacture_date' => $params['manufacture_date'] ?? null,
+                    'received_date'    => $params['received_date'] ?? now()->toDateString(),
+                    'expiry_date'      => $params['expiry_date'] ?? null,
+                    'status'           => self::STOCK_STATUS_NORMAL,
+                    'updated_at'       => now(),
+                ]
+            );
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Race condition: bản ghi vừa được tạo bởi request song song → đọc lại
+            return Stock::where('product_id', $params['product_id'])
+                ->where('location_id', $params['location_id'])
+                ->where('lot_id', $params['lot_id'] ?? null)
+                ->where('serial_id', $params['serial_id'] ?? null)
+                ->lockForUpdate()
+                ->firstOrFail();
+        }
     }
-
     // =========================================================================
     // HELPER — Ghi stock_ledger
     // =========================================================================
@@ -475,7 +484,16 @@ class StockService
                     WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
                     WHEN serial_id IS NOT NULL THEN (SELECT expiry_date FROM serials WHERE id = serial_id)
                     ELSE expiry_date
-                END ASC NULLS LAST
+                END ASC,
+                CASE
+                    WHEN (
+                        CASE
+                            WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
+                            WHEN serial_id IS NOT NULL THEN (SELECT expiry_date FROM serials WHERE id = serial_id)
+                            ELSE expiry_date
+                        END
+                    ) IS NULL THEN 1 ELSE 0
+                END ASC
             "),
             'FIFO' => $query->orderBy('received_date', 'asc'),
             default => $query,
@@ -520,20 +538,19 @@ class StockService
      */
     public function suggestPutawayLocation(int $productId, int $categoryId): ?int
     {
-        // Ưu tiên 1: Rule theo product_id
         $rule = DB::table('putaway_rules')
             ->where('status', 1)
             ->where(function ($q) use ($productId, $categoryId) {
                 $q->where('product_id', $productId)
-                  ->orWhere(function ($q2) use ($categoryId) {
-                      $q2->whereNull('product_id')
-                         ->where('category_id', $categoryId);
-                  });
+                ->orWhere(function ($q2) use ($categoryId) {
+                    $q2->whereNull('product_id')
+                        ->where('category_id', $categoryId);
+                });
             })
             ->orderByRaw("CASE WHEN product_id = ? THEN 0 ELSE 1 END ASC", [$productId])
             ->orderBy('priority', 'asc')
             ->first();
 
-        return $rule?->location_dest;
+        return $rule?->location_dest_id;
     }
 }

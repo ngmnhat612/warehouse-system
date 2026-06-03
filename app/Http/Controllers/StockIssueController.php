@@ -24,7 +24,7 @@ class StockIssueController extends Controller
 
     public function index(Request $request)
     {
-        $query = StockIssue::with(['requester', 'creator'])->withCount('details');
+        $query = StockIssue::with(['requester', 'createdBy'])->withCount('details');
 
         if ($search = $request->search) {
             $query->where(function ($q) use ($search) {
@@ -64,7 +64,24 @@ class StockIssueController extends Controller
             ->get()
             ->groupBy('product_id');
 
-        return view('issues.form', compact('products', 'locations', 'users', 'lots'));
+        $productsJson  = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'code'   => $p->code,
+            'name'   => $p->name,
+            'uom'    => $p->uom?->name ?? '—',
+            'uom_id' => $p->uom_id,
+            'stock'  => (float) ($p->total_stock ?? 0),
+        ])->values();
+
+        $locationsJson = $locations->map(fn($l) => [
+            'id'   => $l->id,
+            'code' => $l->code,
+            'name' => $l->name ?? '',
+        ])->values();
+
+        return view('issues.form', compact(
+            'products', 'productsJson', 'locations', 'locationsJson', 'users', 'lots'
+        ));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -108,7 +125,7 @@ class StockIssueController extends Controller
     public function show(StockIssue $issue)
     {
         $issue->load([
-            'requester', 'creator', 'confirmer',
+            'requester', 'createdBy', 'confirmer',
             'details.product.uom',
             'details.location',
             'details.lot',
@@ -142,7 +159,7 @@ class StockIssueController extends Controller
 
     public function edit(StockIssue $issue)
     {
-        if ($issue->status !== 1) {
+        if ((int) $issue->status !== StockIssue::STATUS_DRAFT) {
             return redirect()->route('issues.show', $issue)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Draft.');
         }
@@ -155,7 +172,24 @@ class StockIssueController extends Controller
             ->select('id', 'product_id', 'lot_number', 'expiry_date')
             ->orderBy('lot_number')->get()->groupBy('product_id');
 
-        return view('issues.form', compact('issue', 'products', 'locations', 'users', 'lots'));
+        $productsJson  = $products->map(fn($p) => [
+            'id'     => $p->id,
+            'code'   => $p->code,
+            'name'   => $p->name,
+            'uom'    => $p->uom?->name ?? '—',
+            'uom_id' => $p->uom_id,
+            'stock'  => (float) ($p->total_stock ?? 0),
+        ])->values();
+
+        $locationsJson = $locations->map(fn($l) => [
+            'id'   => $l->id,
+            'code' => $l->code,
+            'name' => $l->name ?? '',
+        ])->values();
+
+        return view('issues.form', compact(
+            'issue', 'products', 'productsJson', 'locations', 'locationsJson', 'users', 'lots'
+        ));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -164,7 +198,7 @@ class StockIssueController extends Controller
 
     public function update(Request $request, StockIssue $issue)
     {
-        if ($issue->status !== 1) {
+        if ((int) $issue->status !== StockIssue::STATUS_DRAFT) {
             return redirect()->route('issues.show', $issue)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Draft.');
         }
@@ -195,7 +229,7 @@ class StockIssueController extends Controller
 
     public function destroy(StockIssue $issue)
     {
-        if ($issue->status !== 1) {
+        if ((int) $issue->status !== 1) {
             return redirect()->route('issues.index')
                 ->with('error', "Không thể xóa phiếu {$issue->code} vì không ở trạng thái Draft.");
         }
@@ -216,7 +250,7 @@ class StockIssueController extends Controller
 
     public function submit(StockIssue $issue)
     {
-        if ($issue->status !== 1) {
+        if ((int) $issue->status !== 1) {
             return redirect()->route('issues.show', $issue)
                 ->with('error', 'Chỉ có thể gửi duyệt phiếu đang ở trạng thái Draft.');
         }
@@ -234,7 +268,7 @@ class StockIssueController extends Controller
 
     public function approve(StockIssue $issue)
     {
-        if ($issue->status !== 2) {
+        if ((int) $issue->status !== StockIssue::STATUS_PENDING) {
             return redirect()->route('issues.show', $issue)
                 ->with('error', 'Chỉ có thể duyệt phiếu đang ở trạng thái Chờ duyệt.');
         }
@@ -291,7 +325,7 @@ class StockIssueController extends Controller
 
     public function confirm(StockIssue $issue)
     {
-        if ($issue->status !== 3) {
+        if ((int) $issue->status !== StockIssue::STATUS_APPROVED) {
             return redirect()->route('issues.show', $issue)
                 ->with('error', 'Chỉ có thể hoàn tất phiếu đã ở trạng thái Đã duyệt.');
         }
@@ -303,37 +337,25 @@ class StockIssueController extends Controller
                 foreach ($issue->details as $detail) {
                     if ($detail->quantity <= 0) continue;
 
-                    $strategy    = $detail->product?->stock_rotation === 2 ? 'FEFO' : 'FIFO';
-                    $suggestions = $this->stockService->suggestStockForIssue(
-                        $detail->product_id,
-                        $detail->quantity,
-                        $strategy
-                    );
+                    $baseParams = [
+                        'product_id'       => $detail->product_id,
+                        'location_id'      => $detail->location_id,
+                        'quantity'         => $detail->quantity,
+                        'lot_id'           => $detail->lot_id,
+                        'serial_id'        => $detail->serial_id ?? null,
+                        'transaction_type' => StockService::TYPE_ISSUE,
+                        'reference_id'     => $issue->id,
+                        'reference_type'   => 'stock_issue',
+                        'reference_code'   => $issue->code,
+                        'note'             => "Xuất kho từ phiếu {$issue->code}",
+                        'created_by'       => Auth::id(),
+                    ];
 
-                    foreach ($suggestions as $s) {
-                        $baseParams = [
-                            'product_id'       => $detail->product_id,
-                            'location_id'      => $s['location_id'],
-                            'quantity'         => $s['qty_suggest'],
-                            'lot_id'           => $s['lot_id'],
-                            'serial_id'        => $s['serial_id'],
-                            'transaction_type' => StockService::TYPE_ISSUE,
-                            'reference_id'     => $issue->id,
-                            'reference_type'   => 'stock_issue',
-                            'reference_code'   => $issue->code,
-                            'note'             => "Xuất kho từ phiếu {$issue->code}",
-                            'created_by'       => Auth::id(),
-                        ];
-
-                        // 1. Giải phóng reserve trước
-                        $this->stockService->release($baseParams);
-
-                        // 2. Trừ tồn kho thực tế
-                        $this->stockService->decrease($baseParams);
-                    }
+                    $this->stockService->release($baseParams);
+                    $this->stockService->decrease($baseParams);
                 }
 
-                $issue->update(['status' => 4]); // COMPLETED
+                $issue->update(['status' => 4]);
             });
         } catch (\Exception $e) {
             return redirect()->route('issues.show', $issue)
@@ -350,12 +372,12 @@ class StockIssueController extends Controller
 
     public function cancel(StockIssue $issue)
     {
-        if ($issue->status === 4) {
+        if ((int) $issue->status === StockIssue::STATUS_COMPLETED) {
             return redirect()->route('issues.show', $issue)
                 ->with('error', 'Không thể hủy phiếu đã hoàn thành. Vui lòng tạo phiếu điều chỉnh.');
         }
 
-        if ($issue->status === 5) {
+        if ((int) $issue->status === StockIssue::STATUS_CANCELLED) {
             return redirect()->route('issues.show', $issue)
                 ->with('error', 'Phiếu đã được hủy trước đó.');
         }
@@ -363,39 +385,29 @@ class StockIssueController extends Controller
         try {
             DB::transaction(function () use ($issue) {
                 // Nếu đã APPROVED → phải release reserved_qty đã giữ
-                if ($issue->status === 3) {
-                    $issue->load('details.product');
+                if ((int) $issue->status === StockIssue::STATUS_APPROVED) {
+                    $issue->load('details');
 
                     foreach ($issue->details as $detail) {
                         if ($detail->quantity <= 0) continue;
 
-                        $strategy    = $detail->product?->stock_rotation === 2 ? 'FEFO' : 'FIFO';
-
-                        try {
-                            $suggestions = $this->stockService->suggestStockForIssue(
-                                $detail->product_id,
-                                $detail->quantity,
-                                $strategy
-                            );
-
-                            foreach ($suggestions as $s) {
-                                $this->stockService->release([
-                                    'product_id'       => $detail->product_id,
-                                    'location_id'      => $s['location_id'],
-                                    'quantity'         => $s['qty_suggest'],
-                                    'lot_id'           => $s['lot_id'],
-                                    'serial_id'        => $s['serial_id'],
-                                    'transaction_type' => StockService::TYPE_ISSUE,
-                                    'reference_id'     => $issue->id,
-                                    'reference_type'   => 'stock_issue',
-                                    'reference_code'   => $issue->code,
-                                ]);
-                            }
-                        } catch (\Exception $e) {
-                            // Bỏ qua lỗi release nếu stock line không còn — vẫn hủy phiếu
-                        }
+                    try {
+                        $this->stockService->release([
+                            'product_id'       => $detail->product_id,
+                            'location_id'      => $detail->location_id,
+                            'quantity'         => $detail->quantity,
+                            'lot_id'           => $detail->lot_id,
+                            'serial_id'        => $detail->serial_id ?? null,
+                            'transaction_type' => StockService::TYPE_ISSUE,
+                            'reference_id'     => $issue->id,
+                            'reference_type'   => 'stock_issue',
+                            'reference_code'   => $issue->code,
+                        ]);
+                    } catch (\Exception $e) {
+                        // Bỏ qua nếu stock line không còn
                     }
                 }
+            }
 
                 $issue->update(['status' => 5]); // CANCELLED
             });

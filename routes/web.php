@@ -147,12 +147,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/export',  [ActivityLogController::class, 'export'])->name('export');
     });
 
+    Route::get('receipts/suggest-putaway',    [StockReceiptController::class, 'suggestPutaway'])->name('receipts.suggest-putaway');
     Route::resource('receipts', StockReceiptController::class);
     Route::post('receipts/{receipt}/submit',  [StockReceiptController::class, 'submit'])->name('receipts.submit');
     Route::post('receipts/{receipt}/approve', [StockReceiptController::class, 'approve'])->name('receipts.approve');
     Route::post('receipts/{receipt}/confirm', [StockReceiptController::class, 'confirm'])->name('receipts.confirm');
     Route::post('receipts/{receipt}/cancel',  [StockReceiptController::class, 'cancel'])->name('receipts.cancel');
-    Route::get('receipts/suggest-putaway',    [StockReceiptController::class, 'suggestPutaway'])->name('receipts.suggest-putaway');
 
     Route::resource('issues', StockIssueController::class);
     Route::post('issues/{issue}/submit',  [StockIssueController::class, 'submit'])->name('issues.submit');
