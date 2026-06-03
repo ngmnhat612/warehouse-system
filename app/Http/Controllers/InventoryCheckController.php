@@ -13,6 +13,9 @@ use App\Models\StockAdjustment;
 use App\Models\StockAdjustmentDetail;
 use App\Models\StockLedger;
 use App\Models\User;
+use App\Exports\InventoryCheckExport;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -562,5 +565,56 @@ class InventoryCheckController extends Controller
 
         return redirect()->route('stocktakes.show', $stocktake)
             ->with('success', "Đã hủy phiếu kiểm kê {$stocktake->code}.");
+    }
+
+    // ── XUẤT EXCEL ────────────────────────────────────────────────────────────────
+    public function exportExcel(InventoryCheck $stocktake)
+    {
+        $stocktake->load([
+            'assignedTo', 'createdBy',
+            'lines.product.uom', 'lines.location', 'lines.lot', 'lines.countedBy',
+        ]);
+    
+        $filename = "bien-ban-kiem-ke_{$stocktake->code}_" . now()->format('Ymd_His') . '.xlsx';
+    
+        return Excel::download(new InventoryCheckExport($stocktake), $filename);
+    }
+    
+    // ── XUẤT PDF ─────────────────────────────────────────────────────────────────
+    public function exportPdf(InventoryCheck $stocktake)
+    {
+        $stocktake->load([
+            'assignedTo', 'createdBy',
+            'lines.product.uom', 'lines.location', 'lines.lot', 'lines.countedBy',
+        ]);
+    
+        $lines        = $stocktake->lines;
+        $totalLines   = $lines->count();
+        $countedLines = $lines->whereNotNull('actual_qty')->count();
+        $matchLines   = $lines->filter(fn($l) => $l->actual_qty !== null && $l->diff_qty == 0)->count();
+        $diffLines    = $lines->filter(fn($l) => $l->actual_qty !== null && $l->diff_qty != 0)->count();
+        $uncountedLines = $totalLines - $countedLines;
+    
+        $diffLinesList = $lines
+            ->filter(fn($l) => $l->actual_qty !== null && $l->diff_qty != 0)
+            ->sortByDesc(fn($l) => abs($l->diff_qty));
+    
+        $check = $stocktake; // alias cho view
+    
+        $pdf = Pdf::loadView('stocktakes.pdf', compact(
+            'check', 'lines',
+            'totalLines', 'countedLines', 'matchLines', 'diffLines', 'uncountedLines',
+            'diffLinesList'
+        ))
+        ->setPaper('a4', 'portrait')
+        ->setOptions([
+            'defaultFont'          => 'DejaVu Sans',
+            'isRemoteEnabled'      => false,
+            'isHtml5ParserEnabled' => true,
+        ]);
+    
+        $filename = "bien-ban-kiem-ke_{$stocktake->code}_" . now()->format('Ymd_His') . '.pdf';
+    
+        return $pdf->download($filename);
     }
 }
