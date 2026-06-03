@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class StockTransactionSeeder extends Seeder
 {
@@ -12,76 +11,146 @@ class StockTransactionSeeder extends Seeder
     {
         $now = now();
 
-        // 1. LẤY THÔNG TIN CÁC THỰC THỂ CÓ SẴN TRONG DB
-        $products = DB::table('products')->get();
+        // ── 1. LẤY THỰC THỂ CÓ SẴN ──────────────────────────────────────────
+        $products  = DB::table('products')->get();
         $locations = DB::table('locations')->get();
+
         $supplierId = DB::table('suppliers')->value('id') ?? 1;
-        $employeeId = DB::table('employees')->value('id') ?? 1; // ID nhân viên mẫu để gán vào requester_id
-        $userId = DB::table('users')->value('id') ?? 1;
+        $userId     = DB::table('users')->value('id') ?? 1;
 
-        $locWhShelfA1 = $locations->where('code', 'WH-SHELF-A1')->first()->id ?? 1;
-        $locWhPalA    = $locations->where('code', 'WH-PAL-A')->first()->id ?? 6;
+        $locWhShelfA1 = $locations->where('code', 'WH-SHELF-A1')->first()?->id ?? 1;
+        $locWhPalA    = $locations->where('code', 'WH-PAL-A')->first()?->id   ?? 6;
 
-        // Định vị 3 sản phẩm đại diện 3 nhóm tracking
+        // 3 sản phẩm đại diện 3 nhóm tracking
         $prodNone   = $products->where('code', 'SP003')->first();
         $prodLot    = $products->where('code', 'SP007')->first();
         $prodSerial = $products->where('code', 'SP004')->first();
 
         if ($products->isEmpty() || !$prodNone || !$prodLot || !$prodSerial) {
+            $this->command->warn('StockTransactionSeeder: thiếu sản phẩm SP003/SP004/SP007, bỏ qua.');
             return;
         }
 
-        // 2. KHỞI TẠO LOT & SERIAL MẪU KHỚP MIGRATION
-        $lotId = DB::table('lots')->insertGetId([
-            'product_id' => $prodLot->id,
-            'lot_number' => 'LOT-2026-MENT01',
-            'supplier_id' => $supplierId,
-            'received_date' => $now->copy()->subDays(2),
-            'expiry_date' => $now->copy()->addDays(90),
-            'status' => 1,
-            'created_at' => $now,
-            'updated_at' => $now
+        // ── 2. LOT & SERIAL MẪU ──────────────────────────────────────────────
+        $lotExists = DB::table('lots')
+            ->where('product_id', $prodLot->id)
+            ->where('lot_number', 'LOT-2026-MENT01')
+            ->exists();
+
+        $lotId = $lotExists
+            ? DB::table('lots')->where('lot_number', 'LOT-2026-MENT01')->value('id')
+            : DB::table('lots')->insertGetId([
+                'product_id'   => $prodLot->id,
+                'lot_number'   => 'LOT-2026-MENT01',
+                'supplier_id'  => $supplierId,
+                'received_date'=> $now->copy()->subDays(2)->toDateString(),
+                'expiry_date'  => $now->copy()->addDays(90)->toDateString(),
+                'status'       => 1,   // Active
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ]);
+
+        $serialExists = DB::table('serials')
+            ->where('product_id', $prodSerial->id)
+            ->where('serial_number', 'SN-SIEMENS-001')
+            ->exists();
+
+        $serialId1 = $serialExists
+            ? DB::table('serials')->where('serial_number', 'SN-SIEMENS-001')->value('id')
+            : DB::table('serials')->insertGetId([
+                'product_id'    => $prodSerial->id,
+                'serial_number' => 'SN-SIEMENS-001',
+                'lot_id'        => null,
+                'supplier_id'   => $supplierId,
+                'status'        => 1,  // InStock
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ]);
+
+        // ── 3. STOCK ─────────────────────────────────────────────────────────
+        // available_qty là PERSISTED COMPUTED COLUMN — không insert
+        $stockNoneId = $this->upsertStock([
+            'product_id'   => $prodNone->id,
+            'location_id'  => $locWhShelfA1,
+            'lot_id'       => null,
+            'serial_id'    => null,
+            'quantity'     => 500.000,
+            'reserved_qty' => 0.000,
+            'supplier_id'  => $supplierId,
+            'status'       => 1,
+            'updated_at'   => $now,
         ]);
 
-        $serialId1 = DB::table('serials')->insertGetId([
-            'product_id' => $prodSerial->id,
-            'serial_number' => 'SN-SIEMENS-001',
-            'lot_id' => null,
-            'supplier_id' => $supplierId,
-            'status' => 1,
-            'created_at' => $now,
-            'updated_at' => $now
+        $stockLotId = $this->upsertStock([
+            'product_id'   => $prodLot->id,
+            'location_id'  => $locWhPalA,
+            'lot_id'       => $lotId,
+            'serial_id'    => null,
+            'quantity'     => 100.000,
+            'reserved_qty' => 20.000,
+            'supplier_id'  => $supplierId,
+            'status'       => 1,
+            'updated_at'   => $now,
         ]);
 
-        // 3. ĐIỀN SỐ LIỆU CHO BẢNG stock (BỎ available_qty VÌ LÀ COLUMN COMPUTED)
-        $stockNoneId = DB::table('stock')->insertGetId([
-            'product_id' => $prodNone->id, 'location_id' => $locWhShelfA1, 'lot_id' => null, 'serial_id' => null, 'quantity' => 500.000, 'reserved_qty' => 0.000, 'supplier_id' => $supplierId, 'status' => 1, 'updated_at' => $now
+        $stockSerialId = $this->upsertStock([
+            'product_id'   => $prodSerial->id,
+            'location_id'  => $locWhShelfA1,
+            'lot_id'       => null,
+            'serial_id'    => $serialId1,
+            'quantity'     => 1.000,
+            'reserved_qty' => 0.000,
+            'supplier_id'  => $supplierId,
+            'status'       => 1,
+            'updated_at'   => $now,
         ]);
 
-        $stockLotId = DB::table('stock')->insertGetId([
-            'product_id' => $prodLot->id, 'location_id' => $locWhPalA, 'lot_id' => $lotId, 'serial_id' => null, 'quantity' => 100.000, 'reserved_qty' => 20.000, 'supplier_id' => $supplierId, 'status' => 1, 'updated_at' => $now
-        ]);
+        // ── 4. NGHIỆP VỤ MẪU ─────────────────────────────────────────────────
 
-        $stockSerialId = DB::table('stock')->insertGetId([
-            'product_id' => $prodSerial->id, 'location_id' => $locWhShelfA1, 'lot_id' => null, 'serial_id' => $serialId1, 'quantity' => 1.000, 'reserved_qty' => 0.000, 'supplier_id' => $supplierId, 'status' => 1, 'updated_at' => $now
-        ]);
+        // Phiếu nhập đã hoàn thành
+        // receipt_type: 1=NCC, 2=Trả hàng SX, 3=Khác  |  status: 1=Draft … 4=Completed, 5=Cancelled
+        $receiptCode = 'RC-2026-0001';
+        $receiptCompId = DB::table('stock_receipts')
+            ->where('code', $receiptCode)->value('id');
 
-        // =====================================================================
-        // 4. KHỐI DỮ LIỆU ĐẶC THÙ ĐỂ KIỂM THỬ LUỒNG NGHIỆP VỤ (E2E)
-        // =====================================================================
+        if (!$receiptCompId) {
+            $receiptCompId = DB::table('stock_receipts')->insertGetId([
+                'code'         => $receiptCode,
+                'receipt_type' => 1,          // NCC
+                'supplier_id'  => $supplierId,
+                'reference_no' => 'PO-2026-0001',
+                'created_by'   => $userId,
+                'status'       => 4,          // Completed
+                'receipt_date' => $now->copy()->subDays(2)->toDateString(),
+                'created_at'   => $now->copy()->subDays(2),
+                'updated_at'   => $now->copy()->subDays(2),
+            ]);
+        }
 
-        // Phiếu nhập đã hoàn thành (ĐÃ XÓA BỎ 'employee_id')
-        $receiptCompId = DB::table('stock_receipts')->insertGetId([
-            'reference_no' => 'RC-2026-0001',
-            'supplier_id' => $supplierId,
-            'receipt_type' => 'Purchase',
-            'status' => 'COMPLETED',
-            'created_at' => $now->copy()->subDays(2),
-            'updated_at' => $now->copy()->subDays(2)
-        ]);
-        DB::table('stock_receipt_details')->insert(['stock_receipt_id' => $receiptCompId, 'product_id' => $prodNone->id, 'location_dest_id' => $locWhShelfA1, 'lot_id' => null, 'serial_id' => null, 'requested_qty' => 200.00, 'actual_qty' => 200.00, 'qc_status' => 'Pass']);
+        // stock_receipt_details — theo migration:
+        // location_id, expected_qty, actual_qty, uom_id
+        $uomId = DB::table('uoms')->value('id') ?? 1;
+        $detailExists = DB::table('stock_receipt_details')
+            ->where('stock_receipt_id', $receiptCompId)
+            ->where('product_id', $prodNone->id)
+            ->exists();
 
-        // Ghi nhận vào sổ nhật ký kho stock_ledger
+        if (!$detailExists) {
+            DB::table('stock_receipt_details')->insert([
+                'stock_receipt_id' => $receiptCompId,
+                'product_id'       => $prodNone->id,
+                'location_id'      => $locWhShelfA1,
+                'lot_id'           => null,
+                'serial_id'        => null,
+                'uom_id'           => $uomId,
+                'expected_qty'     => 200.000,
+                'actual_qty'       => 200.000,
+                'rejected_qty'     => 0.000,
+                'qc_status'        => 1,       // Pass
+            ]);
+        }
+
+        // Stock ledger — nhập kho RC-2026-0001
         DB::table('stock_ledger')->insert([
             'product_id'       => $prodNone->id,
             'stock_id'         => $stockNoneId,
@@ -91,103 +160,175 @@ class StockTransactionSeeder extends Seeder
             'transaction_type' => 'RECEIPT',
             'reference_id'     => $receiptCompId,
             'reference_type'   => 'stock_receipt',
-            'reference_code'   => 'RC-2026-0001',
+            'reference_code'   => $receiptCode,
             'direction'        => 1,
             'quantity'         => 200.000,
             'balance_after'    => 500.000,
             'created_by'       => $userId,
             'note'             => 'Nhập kho hàng mua mẫu',
-            'transaction_date' => $now->copy()->subDays(2)
+            'transaction_date' => $now->copy()->subDays(2),
         ]);
 
-        // Phiếu nhập chờ duyệt (ĐÃ XÓA BỎ 'employee_id')
-        DB::table('stock_receipts')->insert([
-            'reference_no' => 'RC-2026-0002',
-            'supplier_id' => $supplierId,
-            'receipt_type' => 'Purchase',
-            'status' => 'PENDING',
-            'created_at' => $now,
-            'updated_at' => $now
-        ]);
+        // Phiếu nhập chờ duyệt
+        if (!DB::table('stock_receipts')->where('code', 'RC-2026-0002')->exists()) {
+            DB::table('stock_receipts')->insert([
+                'code'         => 'RC-2026-0002',
+                'receipt_type' => 1,   // NCC
+                'supplier_id'  => $supplierId,
+                'created_by'   => $userId,
+                'status'       => 2,   // Pending
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ]);
+        }
 
-        // Phiếu xuất đã duyệt giữ hàng (ĐÃ ĐỔI THÀNH 'requester_id' VÀ XÓA 'employee_id')
-        $issueAppId = DB::table('stock_issues')->insertGetId([
-            'reference_no' => 'IS-2026-0001',
-            'issue_type' => 'Production',
-            'status' => 'APPROVED',
-            'requester_id' => $employeeId, // Chuẩn theo tài liệu đặc tả
-            'created_at' => $now,
-            'updated_at' => $now
-        ]);
-        DB::table('stock_issue_details')->insert(['stock_issue_id' => $issueAppId, 'product_id' => $prodLot->id, 'location_src_id' => $locWhPalA, 'lot_id' => $lotId, 'serial_id' => null, 'requested_qty' => 20.00, 'actual_qty' => 0.00]);
+        // Phiếu xuất đã duyệt
+        // issue_type: 1=Sản xuất, 2=Bảo trì, 3=Mượn, 4=Khác  |  status: 1=Draft … 4=Completed
+        // requester_id → users.id (theo migration)
+        if (!DB::table('stock_issues')->where('code', 'IS-2026-0001')->exists()) {
+            $issueAppId = DB::table('stock_issues')->insertGetId([
+                'code'         => 'IS-2026-0001',
+                'issue_type'   => 1,          // Sản xuất
+                'requester_id' => $userId,    // users.id — theo migration
+                'created_by'   => $userId,
+                'status'       => 3,          // Approved
+                'issue_date'   => $now->toDateString(),
+                'reference_no' => 'WO-2026-001',
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ]);
 
-        // Phiếu kiểm kê gây đóng băng kho
-        // Lưu ý: Nếu chạy lệnh mà bảng 'inventory_checks' cũng báo lỗi 'employee_id', hãy xóa dòng 'employee_id' ở dưới đây.
-        $checkId = DB::table('inventory_checks')->insertGetId([
-            'reference_no' => 'IC-2026-0001',
-            'status' => 'IN_PROGRESS',
-            'created_at' => $now,
-            'updated_at' => $now
-        ]);
-        DB::table('inventory_freezes')->insert([
-            'inventory_check_id' => $checkId, 'location_id' => $locWhShelfA1, 'frozen_at' => $now, 'unfrozen_at' => null
-        ]);
+            // stock_issue_details — theo migration: location_id, quantity, uom_id
+            DB::table('stock_issue_details')->insert([
+                'stock_issue_id' => $issueAppId,
+                'product_id'     => $prodLot->id,
+                'lot_id'         => $lotId,
+                'serial_id'      => null,
+                'location_id'    => $locWhPalA,
+                'uom_id'         => $uomId,
+                'quantity'       => 20.000,
+            ]);
+        }
 
-        // =====================================================================
-        // 5. KHỐI BỔ SUNG: TRÌNH GIẢ LẬP CHẠY BIỂU ĐỒ DASHBOARD
-        // =====================================================================
+        // Phiếu kiểm kê
+        // inventory_checks: code, check_type(tinyint), status(tinyint), created_by
+        // KHÔNG có cột reference_no
+        if (!DB::table('inventory_checks')->where('code', 'IC-2026-0001')->exists()) {
+            $checkId = DB::table('inventory_checks')->insertGetId([
+                'code'       => 'IC-2026-0001',
+                'check_type' => 1,     // Toàn kho
+                'created_by' => $userId,
+                'status'     => 2,     // InProgress
+                'check_date' => $now->toDateString(),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
 
-        $sampleProducts = $products->whereNotIn('id', [$prodNone->id, $prodLot->id, $prodSerial->id])->take(15);
+            // inventory_freezes — theo migration: check_id, check_type, frozen_by, frozen_at
+            // KHÔNG có cột location_id trực tiếp (scope qua inventory_freeze_details)
+            $freezeId = DB::table('inventory_freezes')->insertGetId([
+                'check_id'   => $checkId,
+                'check_type' => 1,
+                'frozen_by'  => $userId,
+                'frozen_at'  => $now,
+            ]);
+
+            // inventory_freeze_details — freeze_scope: 1=Toàn kho, 2=location, 3=product
+            DB::table('inventory_freeze_details')->insert([
+                'freeze_id'    => $freezeId,
+                'freeze_scope' => 2,   // theo location
+                'location_id'  => $locWhShelfA1,
+                'product_id'   => null,
+            ]);
+        }
+
+        // ── 5. DỮ LIỆU MÔ PHỎNG BIỂU ĐỒ DASHBOARD (30 ngày) ────────────────
+        $sampleProducts = $products
+            ->whereNotIn('id', [$prodNone->id, $prodLot->id, $prodSerial->id])
+            ->take(15);
+
         $mockStocks = [];
 
         foreach ($sampleProducts as $p) {
-            $randomQty = rand(10, 150);
-            if ($p->code === 'SP008' || $p->code === 'SP014') { $randomQty = 1.00; }
-
+            $randomQty     = rand(10, 150);
             $chosenLocation = rand(0, 1) ? $locWhShelfA1 : $locWhPalA;
 
-            $sId = DB::table('stock')->insertGetId([
-                'product_id' => $p->id, 'location_id' => $chosenLocation, 'lot_id' => null, 'serial_id' => null, 'quantity' => $randomQty, 'reserved_qty' => 0.000, 'supplier_id' => $supplierId, 'status' => 1, 'updated_at' => $now->copy()->subDays(30)
+            $sId = $this->upsertStock([
+                'product_id'   => $p->id,
+                'location_id'  => $chosenLocation,
+                'lot_id'       => null,
+                'serial_id'    => null,
+                'quantity'     => $randomQty,
+                'reserved_qty' => 0.000,
+                'supplier_id'  => $supplierId,
+                'received_date'=> $now->copy()->subDays(30)->toDateString(),
+                'status'       => 1,
+                'updated_at'   => $now->copy()->subDays(30),
             ]);
 
-            $mockStocks[$p->id] = ['stock_id' => $sId, 'location_id' => $chosenLocation, 'current_qty' => $randomQty];
+            $mockStocks[$p->id] = [
+                'stock_id'    => $sId,
+                'location_id' => $chosenLocation,
+                'current_qty' => $randomQty,
+            ];
         }
 
-        for ($i = 30; $i >= 0; $i--) {
-            $targetDate = $now->copy()->subDays($i)->setHour(rand(8, 17))->setMinute(rand(0, 59));
-            if ($sampleProducts->isEmpty()) continue;
+        if ($sampleProducts->isNotEmpty()) {
+            for ($i = 30; $i >= 0; $i--) {
+                $targetDate = $now->copy()
+                    ->subDays($i)
+                    ->setHour(rand(8, 17))
+                    ->setMinute(rand(0, 59));
 
-            $p = $sampleProducts->random();
-            $stockInfo = $mockStocks[$p->id] ?? null;
-            if (!$stockInfo) continue;
+                $p = $sampleProducts->random();
+                $stockInfo = $mockStocks[$p->id] ?? null;
+                if (!$stockInfo) continue;
 
-            $isReceipt = rand(0, 1);
-            $qty = rand(5, 30);
+                $isReceipt = (bool) rand(0, 1);
+                $qty       = rand(5, 30);
 
-            if ($isReceipt) {
-                $stockInfo['current_qty'] += $qty;
-            } else {
-                $stockInfo['current_qty'] = max(0, $stockInfo['current_qty'] - $qty);
+                $stockInfo['current_qty'] = $isReceipt
+                    ? $stockInfo['current_qty'] + $qty
+                    : max(0, $stockInfo['current_qty'] - $qty);
+
+                $mockStocks[$p->id]['current_qty'] = $stockInfo['current_qty'];
+
+                DB::table('stock_ledger')->insert([
+                    'product_id'       => $p->id,
+                    'stock_id'         => $stockInfo['stock_id'],
+                    'lot_id'           => null,
+                    'serial_id'        => null,
+                    'location_id'      => $stockInfo['location_id'],
+                    'transaction_type' => $isReceipt ? 'RECEIPT' : 'ISSUE',
+                    'reference_id'     => rand(100, 999),
+                    'reference_type'   => $isReceipt ? 'stock_receipt' : 'stock_issue',
+                    'reference_code'   => ($isReceipt ? 'RC-MOCK-' : 'IS-MOCK-')
+                                         . $targetDate->format('md') . rand(10, 99),
+                    'direction'        => $isReceipt ? 1 : 2,
+                    'quantity'         => $qty,
+                    'balance_after'    => $stockInfo['current_qty'],
+                    'created_by'       => $userId,
+                    'note'             => 'Dữ liệu mô phỏng biến động lịch sử kho',
+                    'transaction_date' => $targetDate,
+                ]);
             }
-            $mockStocks[$p->id]['current_qty'] = $stockInfo['current_qty'];
-
-            DB::table('stock_ledger')->insert([
-                'product_id'       => $p->id,
-                'stock_id'         => $stockInfo['stock_id'],
-                'lot_id'           => null,
-                'serial_id'        => null,
-                'location_id'      => $stockInfo['location_id'],
-                'transaction_type' => $isReceipt ? 'RECEIPT' : 'ISSUE',
-                'reference_id'     => rand(100, 999),
-                'reference_type'   => $isReceipt ? 'stock_receipt' : 'stock_issue',
-                'reference_code'   => ($isReceipt ? 'RC-MOCK-' : 'IS-MOCK-') . $targetDate->format('md') . rand(10, 99),
-                'direction'        => $isReceipt ? 1 : 2,
-                'quantity'         => $qty,
-                'balance_after'    => $stockInfo['current_qty'],
-                'created_by'       => $userId,
-                'note'             => 'Dữ liệu mô phỏng biến động lịch sử kho',
-                'transaction_date' => $targetDate,
-            ]);
         }
+    }
+
+    // ── HELPER: insert hoặc lấy id nếu đã tồn tại ────────────────────────────
+    private function upsertStock(array $data): int
+    {
+        $existing = DB::table('stock')
+            ->where('product_id',  $data['product_id'])
+            ->where('location_id', $data['location_id'])
+            ->where('lot_id',      $data['lot_id'])
+            ->where('serial_id',   $data['serial_id'])
+            ->value('id');
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return DB::table('stock')->insertGetId($data);
     }
 }
