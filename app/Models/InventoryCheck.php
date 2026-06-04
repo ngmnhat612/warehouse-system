@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class InventoryCheck extends Model
 {
+    use LogsActivity;
+
     protected $table = 'inventory_checks';
 
     protected $fillable = [
@@ -16,6 +20,8 @@ class InventoryCheck extends Model
     protected $casts = [
         'check_date'   => 'date',
         'completed_at' => 'datetime',
+        'status'       => 'integer',
+        'check_type'   => 'integer',
     ];
 
     // check_type constants
@@ -71,5 +77,18 @@ class InventoryCheck extends Model
     public function isFrozen(): bool
     {
         return $this->freeze()->whereNull('unfrozen_at')->exists();
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['code', 'status', 'check_type', 'check_date', 'assigned_to', 'note'])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $event) => match($event) {
+                'created' => "Tạo phiếu kiểm kê \"{$this->code}\"",
+                'updated' => "Cập nhật phiếu kiểm kê \"{$this->code}\"",
+                'deleted' => "Xóa phiếu kiểm kê \"{$this->code}\"",
+                default   => $event,
+            });
     }
 }

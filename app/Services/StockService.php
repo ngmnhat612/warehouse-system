@@ -6,9 +6,11 @@ use App\Models\Stock;
 use App\Models\StockLedger;
 use App\Models\InventoryFreeze;
 use App\Models\InventoryFreezeDetail;
+use App\Models\Location;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+
 use Carbon\Carbon;
 
 /**
@@ -357,19 +359,25 @@ class StockService
      */
     public function checkFreeze(int $locationId, int $productId): void
     {
+        // Lấy tất cả ancestor IDs của location hiện tại (bao gồm chính nó)
+        $locationAndAncestorIds = $this->getLocationAndAncestorIds($locationId);
+
         $frozen = InventoryFreezeDetail::query()
             ->join('inventory_freezes', 'inventory_freeze_details.freeze_id', '=', 'inventory_freezes.id')
             ->whereNull('inventory_freezes.unfrozen_at')
-            ->where(function ($q) use ($locationId, $productId) {
-                $q->where('inventory_freeze_details.freeze_scope', 1) // Toàn kho
-                  ->orWhere(function ($q2) use ($locationId) {
-                      $q2->where('inventory_freeze_details.freeze_scope', 2)
-                         ->where('inventory_freeze_details.location_id', $locationId);
-                  })
-                  ->orWhere(function ($q2) use ($productId) {
-                      $q2->where('inventory_freeze_details.freeze_scope', 3)
-                         ->where('inventory_freeze_details.product_id', $productId);
-                  });
+            ->where(function ($q) use ($locationAndAncestorIds, $productId) {
+                // Toàn kho bị freeze
+                $q->where('inventory_freeze_details.freeze_scope', InventoryFreezeDetail::SCOPE_ALL)
+                // Freeze theo location: khớp với location hiện tại HOẶC bất kỳ location cha nào
+                ->orWhere(function ($q2) use ($locationAndAncestorIds) {
+                    $q2->where('inventory_freeze_details.freeze_scope', InventoryFreezeDetail::SCOPE_LOCATION)
+                        ->whereIn('inventory_freeze_details.location_id', $locationAndAncestorIds);
+                })
+                // Freeze theo product: không đổi
+                ->orWhere(function ($q2) use ($productId) {
+                    $q2->where('inventory_freeze_details.freeze_scope', InventoryFreezeDetail::SCOPE_PRODUCT)
+                        ->where('inventory_freeze_details.product_id', $productId);
+                });
             })
             ->exists();
 
@@ -380,6 +388,24 @@ class StockService
                 403
             );
         }
+    }
+
+    /**
+     * Trả về mảng gồm $locationId và tất cả ancestor IDs của nó.
+     * Dùng để kiểm tra freeze theo cây location.
+     */
+    private function getLocationAndAncestorIds(int $locationId): array
+    {
+        $ids = [$locationId];
+
+        $location = Location::select('id', 'parent_id')->find($locationId);
+
+        while ($location && $location->parent_id !== null) {
+            $ids[] = $location->parent_id;
+            $location = Location::select('id', 'parent_id')->find($location->parent_id);
+        }
+
+        return $ids;
     }
 
     // =========================================================================

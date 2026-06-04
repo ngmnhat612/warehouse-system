@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class StockTransfer extends Model
 {
+    use LogsActivity;
+
     protected $table = 'stock_transfers';
 
     protected $fillable = [
@@ -62,5 +66,18 @@ class StockTransfer extends Model
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['code', 'status', 'transfer_type', 'transfer_date', 'note'])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $event) => match($event) {
+                'created' => "Tạo phiếu chuyển kho \"{$this->code}\"",
+                'updated' => "Cập nhật phiếu chuyển kho \"{$this->code}\"",
+                'deleted' => "Xóa phiếu chuyển kho \"{$this->code}\"",
+                default   => $event,
+            });
     }
 }

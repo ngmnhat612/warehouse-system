@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class StockIssue extends Model
 {
+    use LogsActivity;
+
     protected $table = 'stock_issues';
 
     protected $fillable = [
@@ -89,5 +93,18 @@ class StockIssue extends Model
     public function scopeApproved($query)
     {
         return $query->where('status', self::STATUS_APPROVED);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['code', 'status', 'issue_type', 'requester_id', 'issue_date', 'note'])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $event) => match($event) {
+                'created' => "Tạo phiếu xuất kho \"{$this->code}\"",
+                'updated' => "Cập nhật phiếu xuất kho \"{$this->code}\"",
+                'deleted' => "Xóa phiếu xuất kho \"{$this->code}\"",
+                default   => $event,
+            });
     }
 }

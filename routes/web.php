@@ -211,8 +211,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('stocktakes/{stocktake}/adjustment/{adjustment}',  [InventoryCheckController::class, 'showAdjustment'])->name('stocktakes.adjustment.show');
     Route::post('stocktakes/{stocktake}/adjustment/{adjustment}/apply', [InventoryCheckController::class, 'applyAdjustment'])->name('stocktakes.adjustment.apply');
 
-    Route::get('stocktakes/{stocktake}/export/excel', [InventoryCheckController::class, 'exportExcel'])->name('stocktakes.export.excel');
-    Route::get('stocktakes/{stocktake}/export/pdf',   [InventoryCheckController::class, 'exportPdf'])->name('stocktakes.export.pdf');
+    Route::get('stocktakes/{stocktake}/export/excel',  [InventoryCheckController::class, 'downloadTemplate'])->name('stocktakes.export.excel');
+    Route::get('stocktakes/{stocktake}/export/pdf',    [InventoryCheckController::class, 'exportPdf'])->name('stocktakes.export.pdf');
+    Route::post('stocktakes/{stocktake}/import/excel', [InventoryCheckController::class, 'importExcel'])->name('stocktakes.import.excel');
     
     // ── TỒN KHO ───────────────────────────────────────────────────────
     Route::prefix('inventory')->name('inventory.')->group(function () {

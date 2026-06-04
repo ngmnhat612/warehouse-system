@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class Scrap extends Model
 {
@@ -49,5 +51,18 @@ class Scrap extends Model
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['code', 'status', 'scrap_date', 'note'])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $event) => match($event) {
+                'created' => "Tạo phiếu hủy hàng \"{$this->code}\"",
+                'updated' => "Cập nhật phiếu hủy hàng \"{$this->code}\"",
+                'deleted' => "Xóa phiếu hủy hàng \"{$this->code}\"",
+                default   => $event,
+            });
     }
 }

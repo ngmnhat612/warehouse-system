@@ -98,7 +98,13 @@
     @endif
 
     {{-- Gỡ đóng băng --}}
-    @if($isFrozen && ($canEdit || $isDone))
+    @php
+      $hasAppliedAdjustment = $stocktake->adjustments
+          ->contains('status', \App\Models\StockAdjustment::STATUS_APPLIED);
+      $hasNoDiff = $diffLines === 0 && $countedLines === $totalLines && $totalLines > 0;
+      $canUnfreeze = $isFrozen && ($canEdit || $isDone) && ($hasAppliedAdjustment || $hasNoDiff);
+    @endphp
+    @if($canUnfreeze)
       <form method="POST" action="{{ route('stocktakes.unfreeze', $stocktake) }}"
             onsubmit="return confirm('Gỡ đóng băng kho? Các giao dịch có thể được thực hiện trở lại.')">
         @csrf

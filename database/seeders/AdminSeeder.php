@@ -28,18 +28,24 @@ class AdminSeeder extends Seeder
             // Phiếu nhập
             'receipt.view',
             'receipt.create',
-            'receipt.approve',   // chỉ manager
+            'receipt.approve',
 
             // Phiếu xuất
             'issue.view',
             'issue.create',
-            'issue.approve',     // chỉ manager
+            'issue.approve',
 
             // Phiếu chuyển kho
             'transfer.view',
             'transfer.create',
-            'transfer.approve',  // thêm mới — chỉ manager
-            'transfer.confirm',  // thêm mới — chỉ manager
+            'transfer.approve',
+            'transfer.confirm',
+
+            // Kiểm kê kho
+            'stocktake.view',
+            'stocktake.create',
+            'stocktake.adjust',
+            'stocktake.unfreeze',
         ];
 
         foreach ($permissions as $perm) {
@@ -55,6 +61,7 @@ class AdminSeeder extends Seeder
             'issue.view',     'issue.create',
             'transfer.view',  'transfer.create',
             'transfer.confirm',
+            'stocktake.view',
         ]);
 
         // Tạo tài khoản admin mặc định
