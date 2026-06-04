@@ -8,7 +8,9 @@ use App\Models\Category;
 use App\Models\Uom;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Gate;
 
 class ProductController extends Controller
 {
@@ -64,7 +66,9 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        Gate::authorize('master.create');
+
+        $validator = Validator::make($request->all(), [
             'code'                => 'required|string|max:50|unique:products,code',
             'name'                => 'required|string|max:200',
             'category_id'         => 'nullable|exists:categories,id',
@@ -83,15 +87,22 @@ class ProductController extends Controller
             'image'               => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ], $this->messages());
 
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('product_form_action', 'create');
+        }
+
         $data = $request->except(['_token', 'image']);
         $data['code'] = strtoupper(trim($request->code));
 
         if ($request->hasFile('image')) {
             $data['image_path'] = $this->storeImage(
-            $request->file('image'),
-            $request->name,
-            $request->code
-        );
+                $request->file('image'),
+                $request->name,
+                $request->code
+            );
         }
 
         Product::create($data);
@@ -102,7 +113,9 @@ class ProductController extends Controller
 
     public function update(Request $request, Product $product)
     {
-        $request->validate([
+        Gate::authorize('master.edit');
+
+        $validator = Validator::make($request->all(), [
             'code'                => "required|string|max:50|unique:products,code,{$product->id}",
             'name'                => 'required|string|max:200',
             'category_id'         => 'nullable|exists:categories,id',
@@ -121,22 +134,30 @@ class ProductController extends Controller
             'image'               => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ], $this->messages());
 
-        $data = $request->except(['_token', '_method', 'image']);
-        $data['code'] = strtoupper(trim($request->code));
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('product_form_action', 'update:' . $product->id);
+        }
+
+        $data = $request->except(['_token', '_method', 'image', 'remove_image']);
+
+        // Readonly fields: dùng giá trị gốc từ DB, không tin input
+        $data['code']    = $product->code;
+        $data['barcode'] = $product->barcode;
 
         if ($request->hasFile('image')) {
-            // Xóa ảnh cũ nếu có
             if ($product->image_path) {
                 Storage::disk('public')->delete($product->image_path);
             }
             $data['image_path'] = $this->storeImage(
                 $request->file('image'),
                 $request->name,
-                $request->code
+                $product->code
             );
         }
 
-        // Xóa ảnh nếu user tick "xóa ảnh"
         if ($request->boolean('remove_image') && $product->image_path) {
             Storage::disk('public')->delete($product->image_path);
             $data['image_path'] = null;
@@ -150,6 +171,8 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        Gate::authorize('master.delete');
+        
         if ($product->stocks()->exists()) {
             return redirect()->route('master.product.index')
                 ->with('error', "Không thể xóa \"{$product->name}\" vì đang có tồn kho.");

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class SupplierController extends Controller
 {
@@ -35,6 +36,8 @@ class SupplierController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $request->validate([
             'code'     => 'required|string|max:50|unique:suppliers,code',
             'name'     => 'required|string|max:200',
@@ -61,6 +64,8 @@ class SupplierController extends Controller
 
     public function update(Request $request, Supplier $supplier)
     {
+        Gate::authorize('master.edit');
+
         $request->validate([
             'code'     => "required|string|max:50|unique:suppliers,code,{$supplier->id}",
             'name'     => 'required|string|max:200',
@@ -87,6 +92,8 @@ class SupplierController extends Controller
 
     public function destroy(Supplier $supplier)
     {
+        Gate::authorize('master.delete');
+        
         if ($supplier->stockReceipts()->exists()) {
             return redirect()->route('master.supplier.index')
                 ->with('error', "Không thể xóa \"{$supplier->name}\" vì đang có phiếu nhập kho liên quan.");

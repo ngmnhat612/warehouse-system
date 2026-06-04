@@ -105,9 +105,10 @@ return new class extends Migration
             $table->id();
             $table->string('code', 50)->unique();
             $table->tinyInteger('transfer_type')->default(1)
-                  ->comment('1=Sắp xếp kho, 2=Từ Quarantine, 3=Khác');
+                ->comment('1=Sắp xếp kho, 2=Từ Quarantine, 3=Khác');
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('confirmed_by')->nullable();
+            $table->unsignedBigInteger('approved_by')->nullable();  // đặt đây, bỏ ->after()
             $table->tinyInteger('status')->default(1);
             $table->date('transfer_date')->nullable();
             $table->text('note')->nullable();
@@ -115,6 +116,7 @@ return new class extends Migration
 
             $table->foreign('created_by')->references('id')->on('users')->onDelete('no action');
             $table->foreign('confirmed_by')->references('id')->on('users')->onDelete('no action');
+            $table->foreign('approved_by')->references('id')->on('users')->onDelete('no action');
         });
 
         Schema::create('stock_transfer_details', function (Blueprint $table) {

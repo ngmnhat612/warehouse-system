@@ -13,6 +13,7 @@ use App\Models\StockTransferDetail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class StockTransferController extends Controller
 {
@@ -170,7 +171,7 @@ class StockTransferController extends Controller
 
     public function edit(StockTransfer $transfer)
     {
-        if ($transfer->status !== StockTransfer::STATUS_DRAFT) {
+        if ((int) $transfer->status !== StockTransfer::STATUS_DRAFT) {
             return redirect()->route('transfers.show', $transfer)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Nháp.');
         }
@@ -214,7 +215,7 @@ class StockTransferController extends Controller
 
     public function update(Request $request, StockTransfer $transfer)
     {
-        if ($transfer->status !== StockTransfer::STATUS_DRAFT) {
+        if ((int) $transfer->status !== StockTransfer::STATUS_DRAFT) {
             return redirect()->route('transfers.show', $transfer)
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Nháp.');
         }
@@ -242,7 +243,7 @@ class StockTransferController extends Controller
 
     public function destroy(StockTransfer $transfer)
     {
-        if ($transfer->status !== StockTransfer::STATUS_DRAFT) {
+        if ((int) $transfer->status !== StockTransfer::STATUS_DRAFT) {
             return redirect()->route('transfers.index')
                 ->with('error', "Không thể xóa phiếu {$transfer->code} vì không ở trạng thái Nháp.");
         }
@@ -258,20 +259,40 @@ class StockTransferController extends Controller
             ->with('success', "Đã xóa phiếu {$code} thành công.");
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // XÁC NHẬN PHIẾU → Completed & cập nhật tồn kho
-    // ──────────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────────
+    // PENDING → APPROVED (Duyệt phiếu)
+    // ──────────────────────────────────────────────────────────────────
+    public function approve(StockTransfer $transfer)
+    {
+        Gate::authorize('transfer.approve');
 
+        if ((int) $transfer->status !== StockTransfer::STATUS_PENDING) {
+            return redirect()->route('transfers.show', $transfer)
+                ->with('error', 'Chỉ có thể duyệt phiếu đang ở trạng thái Chờ duyệt.');
+        }
+
+        $transfer->update([
+            'status'      => StockTransfer::STATUS_APPROVED,
+            'approved_by' => Auth::id(),
+        ]);
+
+        return redirect()->route('transfers.show', $transfer)
+            ->with('success', "Phiếu {$transfer->code} đã được duyệt. Tiến hành xác nhận để cập nhật tồn kho.");
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // APPROVED → COMPLETED (Xác nhận & cập nhật tồn kho)
+    // ──────────────────────────────────────────────────────────────────
     public function confirm(StockTransfer $transfer)
     {
-        if (!in_array($transfer->status, [StockTransfer::STATUS_DRAFT, StockTransfer::STATUS_PENDING])) {
+        // Không cần Gate::authorize — staff cũng xác nhận được
+        if ((int) $transfer->status !== StockTransfer::STATUS_APPROVED) {
             return redirect()->route('transfers.show', $transfer)
-                ->with('error', 'Phiếu không ở trạng thái có thể xác nhận.');
+                ->with('error', 'Chỉ có thể xác nhận phiếu đã ở trạng thái Đã duyệt.');
         }
 
         $transfer->load('details.product');
 
-        // Kiểm tra tồn kho tại vị trí nguồn
         $errors = $this->checkStockSufficiency($transfer);
         if (!empty($errors)) {
             return redirect()->route('transfers.show', $transfer)
@@ -296,13 +317,11 @@ class StockTransferController extends Controller
                         'created_by'       => Auth::id(),
                     ];
 
-                    // Trừ kho nguồn
                     $this->stockService->decrease(array_merge($baseParams, [
                         'location_id' => $detail->from_location_id,
                         'quantity'    => $qty,
                     ]));
 
-                    // Cộng kho đích
                     $this->stockService->increase(array_merge($baseParams, [
                         'location_id'   => $detail->to_location_id,
                         'quantity'      => $qty,
@@ -321,7 +340,7 @@ class StockTransferController extends Controller
         }
 
         return redirect()->route('transfers.show', $transfer)
-            ->with('success', "Phiếu {$transfer->code} đã được xác nhận và cập nhật tồn kho.");
+            ->with('success', "Phiếu {$transfer->code} đã hoàn tất. Tồn kho đã được cập nhật.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -330,12 +349,12 @@ class StockTransferController extends Controller
 
     public function cancel(StockTransfer $transfer)
     {
-        if ($transfer->status === StockTransfer::STATUS_COMPLETED) {
+        if ((int) $transfer->status === StockTransfer::STATUS_COMPLETED) {
             return redirect()->route('transfers.show', $transfer)
-                ->with('error', 'Không thể hủy phiếu đã hoàn thành. Vui lòng tạo phiếu chuyển ngược lại.');
+                ->with('error', 'Không thể hủy phiếu đã hoàn thành.');
         }
 
-        if ($transfer->status === StockTransfer::STATUS_CANCELLED) {
+        if ((int) $transfer->status === StockTransfer::STATUS_CANCELLED) {
             return redirect()->route('transfers.show', $transfer)
                 ->with('error', 'Phiếu đã được hủy trước đó.');
         }
@@ -484,5 +503,26 @@ class StockTransferController extends Controller
         $seq = $last ? ((int) substr($last, -4)) + 1 : 1;
 
         return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // DRAFT → PENDING (Gửi duyệt)
+    // ──────────────────────────────────────────────────────────────────
+    public function submit(StockTransfer $transfer)
+    {
+        if ((int) $transfer->status !== StockTransfer::STATUS_DRAFT) {
+            return redirect()->route('transfers.show', $transfer)
+                ->with('error', 'Chỉ có thể gửi duyệt phiếu đang ở trạng thái Nháp.');
+        }
+
+        if ($transfer->details()->count() === 0) {
+            return redirect()->route('transfers.show', $transfer)
+                ->with('error', 'Phiếu chưa có hàng hóa. Vui lòng thêm ít nhất một dòng.');
+        }
+
+        $transfer->update(['status' => StockTransfer::STATUS_PENDING]);
+
+        return redirect()->route('transfers.show', $transfer)
+            ->with('success', "Phiếu {$transfer->code} đã được gửi duyệt.");
     }
 }

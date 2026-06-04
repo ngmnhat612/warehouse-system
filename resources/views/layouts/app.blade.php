@@ -5,7 +5,7 @@
     @include('layouts.partials.head')
 </head>
 
-<body>
+<body data-pfa="{{ session('product_form_action', '') }}">
 
     @include('layouts.partials.sidebar')
 

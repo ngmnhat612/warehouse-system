@@ -10,11 +10,13 @@ class StockTransfer extends Model
 
     protected $fillable = [
         'code', 'transfer_type', 'created_by', 'confirmed_by',
+        'approved_by',
         'status', 'transfer_date', 'note',
     ];
 
     protected $casts = [
         'transfer_date' => 'date',
+        'status'        => 'integer',
     ];
 
     // transfer_type constants
@@ -55,5 +57,10 @@ class StockTransfer extends Model
     public function confirmedBy()
     {
         return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

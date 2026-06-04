@@ -73,7 +73,7 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
         @endif
 
         {{-- PENDING: Duyệt & giữ hàng --}}
-        @if($issueStatus === 2)
+        @if($issueStatus === 2 && auth()->user()->can('issue.approve'))
         <button type="button" class="btn btn-primary" data-coreui-toggle="modal" data-coreui-target="#approveModal">
             <svg class="icon me-1">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check') }}"></use>
