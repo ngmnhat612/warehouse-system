@@ -47,15 +47,18 @@ class ReportController extends Controller
         $closingStock = $stockQuery->sum('quantity');
         $openingStock = $closingStock - $totalReceiptQty + $totalIssueQty;
 
-        $lowStockCount = DB::table(DB::raw('(
-            SELECT rr.id
-            FROM reorder_rules rr
-            LEFT JOIN (
-                SELECT product_id, location_id, SUM(available_qty) AS total_qty
-                FROM stock GROUP BY product_id, location_id
-            ) s ON s.product_id = rr.product_id AND s.location_id = rr.location_id
-            WHERE rr.status = 1 AND COALESCE(s.total_qty, 0) < rr.min_qty
-        ) AS sub'))->count();
+        $lowStockCount = DB::table('reorder_rules as rr')
+            ->leftJoinSub(
+                DB::table('stock')
+                    ->selectRaw('product_id, location_id, SUM(quantity - reserved_qty) AS avail_qty')
+                    ->groupBy('product_id', 'location_id'),
+                'st',
+                fn($j) => $j->on('st.product_id',  '=', 'rr.product_id')
+                            ->on('st.location_id', '=', 'rr.location_id')
+            )
+            ->where('rr.status', 1)
+            ->whereRaw('COALESCE(st.avail_qty, 0) < rr.min_qty')
+            ->count();
 
         $expiringSoonCount = DB::table('lots')
             ->whereNotNull('expiry_date')
@@ -114,7 +117,7 @@ class ReportController extends Controller
             )
             ->select(
                 'p.id', 'p.code as product_code', 'p.name as product_name',
-                'p.min_stock', 'c.name as category_name', 'u.name as uom_name',
+                'c.name as category_name', 'u.name as uom_name',
                 DB::raw('COALESCE(sl.receipt_qty, 0) as receipt_qty'),
                 DB::raw('COALESCE(sl.issue_qty,   0) as issue_qty'),
                 DB::raw('COALESCE(st.current_qty, 0) as closing_qty'),
@@ -126,36 +129,90 @@ class ReportController extends Controller
             ->orderBy('p.code')
             ->get();
 
-        // Cảnh báo hàng dưới ngưỡng — dùng products.min_stock (cột có sẵn trên products)
-        $lowStockItems = DB::table('products as p')
+        // Đồng bộ với ReportAlertController::fetchBelowMin:
+        $lowStockItems = DB::table('reorder_rules as rr')
+            ->join('products as p',  'p.id', '=', 'rr.product_id')
+            ->join('locations as l', 'l.id', '=', 'rr.location_id')
+            ->join('uoms as u',      'u.id', '=', 'p.uom_id')
+            ->leftJoin('categories as c', 'c.id', '=', 'p.category_id')
             ->leftJoinSub(
-                DB::table('stock')->selectRaw('product_id, SUM(quantity) as current_qty')
-                    ->groupBy('product_id'),
-                's', 's.product_id', '=', 'p.id'
+                DB::table('stock')
+                    ->selectRaw('product_id, location_id, SUM(quantity - reserved_qty) AS avail_qty')
+                    ->groupBy('product_id', 'location_id'),
+                'st',
+                fn($j) => $j->on('st.product_id',  '=', 'rr.product_id')
+                            ->on('st.location_id', '=', 'rr.location_id')
             )
-            ->select('p.code', 'p.name', 'p.min_stock',
-                     DB::raw('COALESCE(s.current_qty, 0) as current_qty'))
-            ->where('p.status', 1)
-            ->whereNotNull('p.min_stock')
-            ->where('p.min_stock', '>', 0)
-            ->whereRaw('COALESCE(s.current_qty, 0) <= p.min_stock')
-            ->orderBy('p.name')
+            ->select(
+                'p.code',
+                'p.name',
+                'c.name as category_name',
+                'u.name as uom_name',
+                'l.code as location_code',
+                'rr.min_qty as min_stock',
+                'rr.max_qty',
+                DB::raw('COALESCE(st.avail_qty, 0) AS current_qty'),
+                DB::raw('rr.min_qty - COALESCE(st.avail_qty, 0) AS shortage_qty'),
+                DB::raw('CASE WHEN rr.max_qty > 0 THEN rr.max_qty - COALESCE(st.avail_qty, 0) ELSE NULL END AS order_qty')
+            )
+            ->where('rr.status', 1)
+            ->where('p.status',  1)
+            ->whereRaw('COALESCE(st.avail_qty, 0) < rr.min_qty')
+            ->orderByRaw('(rr.min_qty - COALESCE(st.avail_qty, 0)) DESC')
             ->get();
 
-        // Cảnh báo hàng sắp hết hạn
-        $expiringSoonItems = DB::table('lots as l')
-            ->join('products as p', 'l.product_id', '=', 'p.id')
-            ->leftJoin(
-                DB::raw('(SELECT lot_id, SUM(quantity) as qty FROM stock WHERE lot_id IS NOT NULL GROUP BY lot_id) as s'),
-                's.lot_id', '=', 'l.id'
+        // Cảnh báo hàng sắp hết hạn — đồng bộ với ReportAlertController::fetchNearExpiry
+        $_today   = now()->toDateString();
+        $_horizon = now()->addDays(30)->toDateString();
+
+        $_fromLots = DB::table('lots as lt')
+            ->join('products as p',   'p.id', '=', 'lt.product_id')
+            ->join('uoms as u',       'u.id', '=', 'p.uom_id')
+            ->leftJoin('categories as c', 'c.id', '=', 'p.category_id')
+            ->leftJoinSub(
+                DB::table('stock')
+                    ->selectRaw('lot_id, location_id, SUM(quantity) AS qty')
+                    ->whereNotNull('lot_id')
+                    ->where('quantity', '>', 0)
+                    ->groupBy('lot_id', 'location_id'),
+                'st', 'st.lot_id', '=', 'lt.id'
             )
-            ->select('l.lot_number', 'l.expiry_date', 'p.name as product_name',
-                     DB::raw('COALESCE(s.qty, 0) as quantity'))
-            ->where('l.status', 1)
-            ->whereNotNull('l.expiry_date')
-            ->where('l.expiry_date', '<=', now()->addDays(30)->toDateString())
-            ->whereRaw('COALESCE(s.qty, 0) > 0')
-            ->orderBy('l.expiry_date')
+            ->join('locations as lc', 'lc.id', '=', 'st.location_id')
+            ->selectRaw("
+                p.name AS product_name,
+                lt.lot_number,
+                lt.expiry_date,
+                lc.code AS location_code,
+                st.qty AS quantity,
+                DATEDIFF(day, GETDATE(), lt.expiry_date) AS days_left
+            ")
+            ->where('lt.status', 1)
+            ->whereNotNull('lt.expiry_date')
+            ->whereBetween('lt.expiry_date', [$_today, $_horizon])
+            ->where('st.qty', '>', 0);
+
+        $_fromStock = DB::table('stock as s')
+            ->join('products as p',   'p.id', '=', 's.product_id')
+            ->join('locations as lc', 'lc.id', '=', 's.location_id')
+            ->join('uoms as u',       'u.id', '=', 'p.uom_id')
+            ->leftJoin('categories as c', 'c.id', '=', 'p.category_id')
+            ->selectRaw("
+                p.name AS product_name,
+                NULL AS lot_number,
+                s.expiry_date,
+                lc.code AS location_code,
+                SUM(s.quantity) AS quantity,
+                DATEDIFF(day, GETDATE(), s.expiry_date) AS days_left
+            ")
+            ->whereNull('s.lot_id')
+            ->whereNotNull('s.expiry_date')
+            ->whereBetween('s.expiry_date', [$_today, $_horizon])
+            ->where('s.quantity', '>', 0)
+            ->groupBy('p.name', 's.expiry_date', 'lc.code');
+
+        $expiringSoonItems = $_fromLots
+            ->union($_fromStock)
+            ->orderBy('days_left')
             ->get();
 
         return compact(

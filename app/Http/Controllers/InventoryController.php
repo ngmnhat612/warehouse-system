@@ -42,8 +42,6 @@ class InventoryController extends Controller
                 's.id',
                 'p.code as product_code',
                 'p.name as product_name',
-                'p.min_stock',
-                'p.max_stock',
                 'p.tracking_type',
                 'c.name as category_name',
                 'l.code as location_code',

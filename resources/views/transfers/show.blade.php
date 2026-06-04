@@ -288,7 +288,6 @@ $transferStatus = (int) $transfer->status;
                                 </td>
                                 <td class="text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</td>
                                 <td class="text-end fw-semibold">{{ $fmt($detail->quantity) }}</td>
-                                <td class="text-end fw-semibold">{{ number_format($detail->quantity, 3) }}</td>
                                 <td>
                                     <span
                                         class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
@@ -320,18 +319,11 @@ $transferStatus = (int) $transfer->status;
                         @if($transfer->details->count())
                         <tfoot class="table-light">
                             <tr>
-                                <<<<<<< HEAD <td colspan="7" class="text-end fw-semibold small text-body-secondary">
+                                <td colspan="7" class="text-end fw-semibold small text-body-secondary">
                                     Tổng cộng: <span class="fw-bold text-body">{{ $transfer->details->count() }} mặt
                                         hàng</span>
-                                    </td>
-                                    <td></td>
-                                    =======
-                                    <td colspan="3" class="text-end fw-semibold small text-body-secondary">Tổng số
-                                        lượng:</td>
-                                    <td class="text-end fw-bold">
-                                        {{ number_format($transfer->details->sum('quantity'), 3) }}</td>
-                                    <td colspan="4"></td>
-                                    >>>>>>> origin/main
+                                </td>
+                                <td></td>
                             </tr>
                         </tfoot>
                         @endif

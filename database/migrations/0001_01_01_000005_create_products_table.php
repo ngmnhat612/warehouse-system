@@ -18,8 +18,6 @@ return new class extends Migration
             $table->decimal('weight', 10, 3)->nullable();
             $table->decimal('volume', 10, 3)->nullable();
             $table->string('barcode', 100)->nullable()->unique();
-            $table->decimal('min_stock', 18, 3)->default(0);
-            $table->decimal('max_stock', 18, 3)->nullable();
             $table->integer('alert_before_expiry')->nullable()->comment('Cảnh báo trước N ngày hết hạn');
             $table->tinyInteger('tracking_type')->default(1)->comment('1=None, 2=Lot, 3=Serial, 4=LotAndSerial');
             $table->tinyInteger('stock_rotation')->default(1)->comment('1=FIFO, 2=FEFO, 3=Thủ công');

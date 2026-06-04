@@ -51,12 +51,10 @@ class ProductController extends Controller
 
     /**
      * Sinh barcode tự động — trả về JSON
-     * GET /master/product/generate-barcode
      */
     public function generateBarcode()
     {
         do {
-            // Prefix 200 (nội bộ) + 9 số ngẫu nhiên = 12 số → thêm check digit = 13 số
             $twelveDigits = '200' . str_pad(random_int(0, 999999999), 9, '0', STR_PAD_LEFT);
             $barcode = $this->appendEan13Check($twelveDigits);
         } while (Product::where('barcode', $barcode)->exists());
@@ -77,8 +75,6 @@ class ProductController extends Controller
             'weight'              => 'nullable|numeric|min:0',
             'volume'              => 'nullable|numeric|min:0',
             'barcode'             => 'nullable|string|max:100|unique:products,barcode',
-            'min_stock'           => 'nullable|numeric|min:0',
-            'max_stock'           => 'nullable|numeric|min:0',
             'alert_before_expiry' => 'nullable|integer|min:0',
             'tracking_type'       => 'required|in:1,2,3,4',
             'stock_rotation'      => 'required|in:1,2,3',
@@ -97,6 +93,9 @@ class ProductController extends Controller
         $data = $request->except(['_token', 'image']);
         $data['code'] = strtoupper(trim($request->code));
 
+        // Không lưu min_stock/max_stock — dùng reorder_rules thay thế
+        unset($data['min_stock'], $data['max_stock']);
+
         if ($request->hasFile('image')) {
             $data['image_path'] = $this->storeImage(
                 $request->file('image'),
@@ -105,10 +104,14 @@ class ProductController extends Controller
             );
         }
 
-        Product::create($data);
+        $product = Product::create($data);
 
-        return redirect()->route('master.product.index')
-            ->with('success', "Đã thêm hàng hóa \"{$request->name}\" thành công.");
+        // Chuyển sang trang reorder rule với product đã chọn sẵn
+        return redirect()
+            ->route('master.reorder_rule.index', ['new_product_id' => $product->id])
+            ->with('success', "Đã thêm hàng hóa \"{$product->name}\" thành công.")
+            ->with('suggest_reorder_rule', true)
+            ->with('new_product_name', $product->name);
     }
 
     public function update(Request $request, Product $product)
@@ -124,8 +127,6 @@ class ProductController extends Controller
             'weight'              => 'nullable|numeric|min:0',
             'volume'              => 'nullable|numeric|min:0',
             'barcode'             => "nullable|string|max:100|unique:products,barcode,{$product->id}",
-            'min_stock'           => 'nullable|numeric|min:0',
-            'max_stock'           => 'nullable|numeric|min:0',
             'alert_before_expiry' => 'nullable|integer|min:0',
             'tracking_type'       => 'required|in:1,2,3,4',
             'stock_rotation'      => 'required|in:1,2,3',
@@ -143,9 +144,12 @@ class ProductController extends Controller
 
         $data = $request->except(['_token', '_method', 'image', 'remove_image']);
 
-        // Readonly fields: dùng giá trị gốc từ DB, không tin input
+        // Readonly fields
         $data['code']    = $product->code;
         $data['barcode'] = $product->barcode;
+
+        // Không lưu min_stock/max_stock
+        unset($data['min_stock'], $data['max_stock']);
 
         if ($request->hasFile('image')) {
             if ($product->image_path) {
@@ -172,13 +176,12 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         Gate::authorize('master.delete');
-        
+
         if ($product->stocks()->exists()) {
             return redirect()->route('master.product.index')
                 ->with('error', "Không thể xóa \"{$product->name}\" vì đang có tồn kho.");
         }
 
-        // Xóa ảnh khi xóa product
         if ($product->image_path) {
             Storage::disk('public')->delete($product->image_path);
         }
@@ -192,16 +195,11 @@ class ProductController extends Controller
 
     // ===== PRIVATE HELPERS =====
 
-    /**
-     * Tính check digit EAN-13 và gắn vào chuỗi 12 số
-     */
     private function appendEan13Check(string $twelveDigits): string
     {
         $sum = 0;
         for ($i = 0; $i < 12; $i++) {
             $digit = (int) $twelveDigits[$i];
-            // Vị trí 1,3,5... (index 0,2,4) nhân 1
-            // Vị trí 2,4,6... (index 1,3,5) nhân 3
             $sum += ($i % 2 === 0) ? $digit * 1 : $digit * 3;
         }
         $check = (10 - ($sum % 10)) % 10;
@@ -211,27 +209,22 @@ class ProductController extends Controller
     private function messages(): array
     {
         return [
-            'code.required'    => 'Vui lòng nhập mã hàng hóa.',
-            'code.unique'      => 'Mã hàng hóa đã tồn tại.',
-            'name.required'    => 'Vui lòng nhập tên hàng hóa.',
-            'uom_id.required'  => 'Vui lòng chọn đơn vị tính.',
-            'barcode.unique'   => 'Barcode đã được sử dụng.',
+            'code.required'          => 'Vui lòng nhập mã hàng hóa.',
+            'code.unique'            => 'Mã hàng hóa đã tồn tại.',
+            'name.required'          => 'Vui lòng nhập tên hàng hóa.',
+            'uom_id.required'        => 'Vui lòng chọn đơn vị tính.',
+            'barcode.unique'         => 'Barcode đã được sử dụng.',
             'tracking_type.required' => 'Vui lòng chọn kiểu theo dõi.',
-            'image.image'      => 'File ảnh không hợp lệ.',
-            'image.max'        => 'Ảnh không được vượt quá 2MB.',
+            'image.image'            => 'File ảnh không hợp lệ.',
+            'image.max'              => 'Ảnh không được vượt quá 2MB.',
         ];
     }
 
     private function storeImage($file, string $productName, string $productCode): string
     {
         $extension = $file->getClientOriginalExtension();
-        
-        // Slug hóa tên: "Máy bơm nước LVP-50" → "may-bom-nuoc-lvp-50"
-        $slug = Str::slug($productName);
-        
-        // Tên file: may-bom-nuoc-lvp-50_SP001.jpg
-        $filename = $slug . '_' . strtoupper($productCode) . '.' . $extension;
-        
+        $slug      = Str::slug($productName);
+        $filename  = $slug . '_' . strtoupper($productCode) . '.' . $extension;
         return $file->storeAs('products', $filename, 'public');
     }
 }
