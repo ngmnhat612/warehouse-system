@@ -63,7 +63,7 @@ class ProductSeeder extends Seeder
                 'name'                => 'Vòng bi 6205-2RS',
                 'category_id'         => $catVong,
                 'uom_id'              => 1,   // Cái
-                'uom_purchase_id'     => 4,   // Hộp
+                'uom_purchase_id'     => 4,   // Hộp (1 Hộp = 12 Cái)
                 'barcode'             => 'BC-SP003',
                 'min_stock'           => 10.000,
                 'max_stock'           => 200.000,
@@ -94,8 +94,8 @@ class ProductSeeder extends Seeder
                 'code'                => 'SP005',
                 'name'                => 'Cáp điện CVV 2x1.5mm²',
                 'category_id'         => $catCap,
-                'uom_id'              => 2,   // Cuộn
-                'uom_purchase_id'     => null,
+                'uom_id'              => 6,   // Mét
+                'uom_purchase_id'     => 2,   // Cuộn (1 Cuộn = 100 Mét)
                 'barcode'             => 'BC-SP005',
                 'min_stock'           => 5.000,
                 'max_stock'           => 50.000,
@@ -110,7 +110,7 @@ class ProductSeeder extends Seeder
                 'code'                => 'SP006',
                 'name'                => 'Ống thép đen DN42 (6m/cây)',
                 'category_id'         => $catOng,
-                'uom_id'              => 1,   // Cái (cây)
+                'uom_id'              => 1,   // Cái
                 'uom_purchase_id'     => null,
                 'barcode'             => 'BC-SP006',
                 'min_stock'           => 10.000,
@@ -124,10 +124,10 @@ class ProductSeeder extends Seeder
             ],
             [
                 'code'                => 'SP007',
-                'name'                => 'Dầu bôi trơn ISO VG 68 (20L)',
+                'name'                => 'Mỡ bôi trơn công nghiệp đặc chủng',
                 'category_id'         => $catDau,
-                'uom_id'              => 7,   // Lít
-                'uom_purchase_id'     => null,
+                'uom_id'              => 1,   // Cái (hũ)
+                'uom_purchase_id'     => 4,   // Hộp (1 Hộp = 12 Cái)
                 'barcode'             => 'BC-SP007',
                 'min_stock'           => 20.000,
                 'max_stock'           => 200.000,
@@ -146,7 +146,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'code' => 'SP009', 'name' => 'Động cơ Servo Panasonic 750W kèm Driver', 'category_id' => $catDong,
-                'uom_id' => 5, 'uom_purchase_id' => null, 'barcode' => 'BC-SP009', 'min_stock' => 2.00, 'max_stock' => 10.00,
+                'uom_id' => 1, 'uom_purchase_id' => 5, 'barcode' => 'BC-SP009', 'min_stock' => 2.00, 'max_stock' => 10.00, // Cơ bản: Cái, mua theo Bộ
                 'alert_before_expiry' => null, 'tracking_type' => 3, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
@@ -166,7 +166,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'code' => 'SP013', 'name' => 'Bộ điều khiển nguồn SCR điện 3 pha Delta', 'category_id' => $catBoard,
-                'uom_id' => 5, 'uom_purchase_id' => null, 'barcode' => 'BC-SP013', 'min_stock' => 2.00, 'max_stock' => 12.00,
+                'uom_id' => 1, 'uom_purchase_id' => 5, 'barcode' => 'BC-SP013', 'min_stock' => 2.00, 'max_stock' => 12.00, // Cơ bản: Cái, mua theo Bộ
                 'alert_before_expiry' => null, 'tracking_type' => 3, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
 
@@ -213,7 +213,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'code' => 'SP022', 'name' => 'Bộ lọc khí nén Festo MS6-LFR', 'category_id' => $catVong,
-                'uom_id' => 5, 'uom_purchase_id' => null, 'barcode' => 'BC-SP022', 'min_stock' => 3.00, 'max_stock' => 20.00,
+                'uom_id' => 1, 'uom_purchase_id' => 5, 'barcode' => 'BC-SP022', 'min_stock' => 3.00, 'max_stock' => 20.00, // Cơ bản: Cái, mua theo Bộ
                 'alert_before_expiry' => null, 'tracking_type' => 1, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
@@ -239,23 +239,23 @@ class ProductSeeder extends Seeder
                 'alert_before_expiry' => 60, 'tracking_type' => 2, 'stock_rotation' => 2, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
-                'code' => 'SP027', 'name' => 'Dầu thủy lực Castrol Hyspin AWH-M 68', 'category_id' => $catDau,
-                'uom_id' => 7, 'uom_purchase_id' => null, 'barcode' => 'BC-SP027', 'min_stock' => 200.00, 'max_stock' => 1000.00,
+                'code' => 'SP027', 'name' => 'Thép tấm cán nóng SS400', 'category_id' => $catCap,
+                'uom_id' => 3, 'uom_purchase_id' => 8, 'barcode' => 'BC-SP027', 'min_stock' => 200.00, 'max_stock' => 1000.00, // Cơ bản: Kg, mua theo Tấm
                 'alert_before_expiry' => 120, 'tracking_type' => 2, 'stock_rotation' => 2, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
                 'code' => 'SP028', 'name' => 'Cáp mạng Cat6 chống nhiễu AMP (Cuộn 305m)', 'category_id' => $catCap,
-                'uom_id' => 2, 'uom_purchase_id' => null, 'barcode' => 'BC-SP028', 'min_stock' => 5.00, 'max_stock' => 30.00,
+                'uom_id' => 6, 'uom_purchase_id' => 2, 'barcode' => 'BC-SP028', 'min_stock' => 5.00, 'max_stock' => 30.00, // Cơ bản: Mét, mua theo Cuộn
                 'alert_before_expiry' => null, 'tracking_type' => 2, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
                 'code' => 'SP029', 'name' => 'Dây rút nhựa công nghiệp 30cm (Hộp 100 cái)', 'category_id' => $catCap,
-                'uom_id' => 4, 'uom_purchase_id' => null, 'barcode' => 'BC-SP029', 'min_stock' => 20.00, 'max_stock' => 200.00,
+                'uom_id' => 1, 'uom_purchase_id' => 4, 'barcode' => 'BC-SP029', 'min_stock' => 20.00, 'max_stock' => 200.00, // Cơ bản: Cái, mua theo Hộp
                 'alert_before_expiry' => null, 'tracking_type' => 1, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
                 'code' => 'SP030', 'name' => 'Ống khí nén PU Phi 8 SMC (Cuộn 100m)', 'category_id' => $catOng,
-                'uom_id' => 2, 'uom_purchase_id' => null, 'barcode' => 'BC-SP030', 'min_stock' => 3.00, 'max_stock' => 25.00,
+                'uom_id' => 6, 'uom_purchase_id' => 2, 'barcode' => 'BC-SP030', 'min_stock' => 3.00, 'max_stock' => 25.00, // Cơ bản: Mét, mua theo Cuộn
                 'alert_before_expiry' => null, 'tracking_type' => 1, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
@@ -264,8 +264,8 @@ class ProductSeeder extends Seeder
                 'alert_before_expiry' => 45, 'tracking_type' => 2, 'stock_rotation' => 2, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
-                'code' => 'SP032', 'name' => 'Nước làm mát két nước công nghiệp dung dịch', 'category_id' => $catDau,
-                'uom_id' => 7, 'uom_purchase_id' => null, 'barcode' => 'BC-SP032', 'min_stock' => 50.00, 'max_stock' => 500.00,
+                'code' => 'SP032', 'name' => 'Keo dán công nghiệp kết cấu cứng Epoxy', 'category_id' => $catDau,
+                'uom_id' => 1, 'uom_purchase_id' => 4, 'barcode' => 'BC-SP032', 'min_stock' => 50.00, 'max_stock' => 500.00, // Cơ bản: Cái (tuýp), mua theo Hộp
                 'alert_before_expiry' => 90, 'tracking_type' => 2, 'stock_rotation' => 2, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
@@ -274,7 +274,7 @@ class ProductSeeder extends Seeder
                 'alert_before_expiry' => null, 'tracking_type' => 1, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
-                'code' => 'SP034', 'name' => 'Ống cao su lõi thép hút nước Phi 50', 'category_id' => $catOng,
+                'code' => 'SP034', 'name' => 'Ống cao sau lõi thép hút nước Phi 50', 'category_id' => $catOng,
                 'uom_id' => 6, 'uom_purchase_id' => null, 'barcode' => 'BC-SP034', 'min_stock' => 30.00, 'max_stock' => 300.00,
                 'alert_before_expiry' => null, 'tracking_type' => 1, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
@@ -306,8 +306,8 @@ class ProductSeeder extends Seeder
                 'alert_before_expiry' => null, 'tracking_type' => 1, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
-                'code' => 'SP040', 'name' => 'Dầu máy nén khí Shell Corena S3 R46', 'category_id' => $catDau,
-                'uom_id' => 7, 'uom_purchase_id' => null, 'barcode' => 'BC-SP040', 'min_stock' => 40.00, 'max_stock' => 400.00,
+                'code' => 'SP040', 'name' => 'Tấm inox chống rỉ sét 304', 'category_id' => $catCap,
+                'uom_id' => 3, 'uom_purchase_id' => 8, 'barcode' => 'BC-SP040', 'min_stock' => 40.00, 'max_stock' => 400.00, // Cơ bản: Kg, mua theo Tấm
                 'alert_before_expiry' => 180, 'tracking_type' => 2, 'stock_rotation' => 2, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
@@ -317,7 +317,7 @@ class ProductSeeder extends Seeder
             ],
             [
                 'code' => 'SP042', 'name' => 'Đầu cốt cos trần thông tin SC16-6 (Hộp 100 cái)', 'category_id' => $catCap,
-                'uom_id' => 4, 'uom_purchase_id' => null, 'barcode' => 'BC-SP042', 'min_stock' => 10.00, 'max_stock' => 100.00,
+                'uom_id' => 1, 'uom_purchase_id' => 4, 'barcode' => 'BC-SP042', 'min_stock' => 10.00, 'max_stock' => 100.00, // Cơ bản: Cái, mua theo Hộp
                 'alert_before_expiry' => null, 'tracking_type' => 1, 'stock_rotation' => 1, 'status' => 1, 'created_at' => $now, 'updated_at' => $now
             ],
             [
