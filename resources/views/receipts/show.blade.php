@@ -11,6 +11,7 @@
 @section('content')
 
 @php
+$fmt = fn($n) => rtrim(rtrim(number_format((float)$n, 3, '.', ','), '0'), '.');
 $statusMap = [
 1 => ['Nháp', 'secondary', 'cil-pencil'],
 2 => ['Chờ duyệt', 'warning', 'cil-clock'],
@@ -278,12 +279,12 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
                                 <div class="text-body-secondary small">{{ $detail->product?->code }}</div>
                             </td>
                             <td class="text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</td>
-                            <td class="text-end fw-semibold">{{ number_format($detail->expected_qty, 3) }}</td>
+                            <td class="text-end fw-semibold">{{ $fmt($detail->expected_qty) }}</td>
                             <td class="text-end">
                                 @if($detail->actual_qty !== null)
                                 <span
                                     class="fw-semibold {{ $detail->actual_qty < $detail->expected_qty ? 'text-warning' : 'text-success' }}">
-                                    {{ number_format($detail->actual_qty, 3) }}
+                                    {{ $fmt($detail->actual_qty) }}
                                 </span>
                                 @else
                                 <span class="text-body-secondary">—</span>
@@ -325,12 +326,11 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
                     @if($receipt->details->count())
                     <tfoot class="table-light">
                         <tr>
-                            <td colspan="3" class="text-end fw-semibold small text-body-secondary">Tổng:</td>
-                            <td class="text-end fw-bold">
-                                {{ number_format($receipt->details->sum('expected_qty'), 3) }}</td>
-                            <td class="text-end fw-bold">
-                                {{ number_format($receipt->details->sum('actual_qty'), 3) }}</td>
-                            <td colspan="3"></td>
+                            <td colspan="7" class="text-end fw-semibold small text-body-secondary">
+                                Tổng cộng: <span class="fw-bold text-body">{{ $receipt->details->count() }} mặt
+                                    hàng</span>
+                            </td>
+                            <td></td>
                         </tr>
                     </tfoot>
                     @endif

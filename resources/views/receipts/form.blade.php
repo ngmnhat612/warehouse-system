@@ -170,6 +170,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                 </div>
 
                 <div class="card-body p-0">
+                    <div id="lotSerialAlertContainer"></div>
                     <div class="table-responsive">
                         <table class="table align-middle mb-0" id="detailTable">
                             <thead class="table-light">
@@ -199,6 +200,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                                             @foreach($products as $p)
                                             <option value="{{ $p->id }}" data-uom="{{ $p->uom?->name }}"
                                                 data-uom-id="{{ $p->uom_id }}"
+                                                data-tracking="{{ (int)($p->tracking_type ?? 1) }}"
                                                 {{ $detail->product_id == $p->id ? 'selected' : '' }}>
                                                 {{ $p->code }} — {{ $p->name }}
                                             </option>
@@ -217,7 +219,8 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                                             min="0.001" step="0.001" required>
                                     </td>
                                     <td>
-                                        <input type="number" class="form-control form-control-sm text-end"
+                                        <input type="number"
+                                            class="form-control form-control-sm text-end actual-qty-input"
                                             name="details[{{ $i }}][actual_qty]" value="{{ $detail->actual_qty }}"
                                             min="0" step="0.001">
                                     </td>
@@ -234,10 +237,10 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                                         </select>
                                     </td>
                                     <td>
-                                        <input type="text" class="form-control form-control-sm"
+                                        <input type="text" class="form-control form-control-sm lot-serial-input"
                                             name="details[{{ $i }}][lot_number]"
-                                            value="{{ $detail->lot?->lot_number ?? '' }}" placeholder="Số lot"
-                                            maxlength="50">
+                                            value="{{ $detail->lot?->lot_number ?? ($detail->serial?->serial_number ?? '') }}"
+                                            placeholder="Số lot" maxlength="100">
                                     </td>
                                     <td>
                                         <input type="date" class="form-control form-control-sm"
@@ -298,10 +301,45 @@ const LOCATIONS = @json($locationsJson);
 
 let rowIndex = <?php echo $isEdit ? $receipt->details->count() : 0; ?>;
 
+// ── Áp dụng trạng thái tracking cho một <tr> ──────────────────────
+function applyTracking(tr, tracking) {
+    const lotInput = tr.querySelector('.lot-serial-input');
+    const actualInput = tr.querySelector('.actual-qty-input');
+    if (!lotInput) return;
+
+    if (tracking === 1) {
+        // Không quản lý lô — khóa ô lot
+        lotInput.disabled = true;
+        lotInput.value = '';
+        lotInput.placeholder = '—';
+        lotInput.classList.add('bg-body-secondary');
+        if (actualInput) actualInput.removeAttribute('readonly');
+    } else if (tracking === 2) {
+        // Quản lý theo Lot
+        lotInput.disabled = false;
+        lotInput.placeholder = 'Số lot / batch';
+        lotInput.classList.remove('bg-body-secondary');
+        if (actualInput) actualInput.removeAttribute('readonly');
+    } else if (tracking === 3) {
+        // Quản lý theo Serial — actual_qty luôn = 1
+        lotInput.disabled = false;
+        lotInput.placeholder = 'Mã serial';
+        lotInput.classList.remove('bg-body-secondary');
+        if (actualInput) {
+            actualInput.value = 1;
+            actualInput.setAttribute('readonly', 'readonly');
+            actualInput.classList.add('bg-body-secondary');
+        }
+    }
+}
+
 // ── Template một dòng chi tiết ─────────────────────────────────────
 function rowTemplate(i) {
     const productOptions = PRODUCTS.map(p =>
-        `<option value="${p.id}" data-uom="${p.uom}" data-uom-id="${p.uom_id}">${p.code} — ${p.name}</option>`
+        `<option value="${p.id}"
+            data-uom="${p.uom}"
+            data-uom-id="${p.uom_id}"
+            data-tracking="${p.tracking}">${p.code} — ${p.name}</option>`
     ).join('');
 
     const locationOptions = LOCATIONS.map(l =>
@@ -327,10 +365,11 @@ function rowTemplate(i) {
       <input type="number" class="form-control form-control-sm text-end"
              name="details[${i}][expected_qty]"
              min="0.001" step="0.001" required placeholder="0"
-             oninput="updateTotals()">
+             oninput="updateTotals()"
+             onchange="onExpectedQtyChange(this)">
     </td>
     <td>
-      <input type="number" class="form-control form-control-sm text-end"
+      <input type="number" class="form-control form-control-sm text-end actual-qty-input"
              name="details[${i}][actual_qty]"
              min="0" step="0.001" placeholder="0">
     </td>
@@ -341,9 +380,10 @@ function rowTemplate(i) {
       </select>
     </td>
     <td>
-      <input type="text" class="form-control form-control-sm"
+      <input type="text" class="form-control form-control-sm lot-serial-input"
              name="details[${i}][lot_number]"
-             placeholder="Số lot" maxlength="50">
+             placeholder="Số lot" maxlength="100" disabled
+             oninput="clearLotError(this)">
     </td>
     <td>
       <input type="date" class="form-control form-control-sm"
@@ -356,6 +396,57 @@ function rowTemplate(i) {
       </button>
     </td>
   </tr>`;
+}
+
+// ── Khi chọn hàng hóa → điền ĐVT + áp tracking ───────────────────
+function onProductChange(sel) {
+    const opt = sel.options[sel.selectedIndex];
+    const tr = sel.closest('tr');
+    const tracking = parseInt(opt.dataset.tracking) || 1;
+
+    tr.querySelector('.uom-label').textContent = opt.dataset.uom || '—';
+    tr.querySelector('.uom-hidden').value = opt.dataset.uomId || '';
+
+    applyTracking(tr, tracking);
+}
+
+// ── Khi thay đổi SL dự kiến trên sản phẩm Serial ─────────────────
+function onExpectedQtyChange(input) {
+    updateTotals();
+    const tr = input.closest('tr');
+    const sel = tr.querySelector('.product-select');
+    const opt = sel.options[sel.selectedIndex];
+    const tracking = parseInt(opt.dataset.tracking) || 1;
+    const qty = parseInt(input.value) || 1;
+
+    if (tracking !== 3 || qty <= 1) return;
+
+    // Nhân bản thành qty dòng riêng biệt (mỗi dòng = 1 serial)
+    const locVal = tr.querySelector('select[name$="[location_id]"]').value;
+    const expiryVal = tr.querySelector('input[name$="[expiry_date]"]').value;
+    const prodVal = sel.value;
+
+    input.value = 1; // dòng hiện tại = 1
+
+    for (let n = 1; n < qty; n++) {
+        document.getElementById('detailBody').insertAdjacentHTML('beforeend', rowTemplate(rowIndex));
+        const newTr = document.getElementById('detailBody').lastElementChild;
+        rowIndex++;
+
+        // Copy sản phẩm
+        const newSel = newTr.querySelector('.product-select');
+        newSel.value = prodVal;
+        onProductChange(newSel);
+
+        // Copy vị trí & hạn dùng
+        newTr.querySelector('select[name$="[location_id]"]').value = locVal;
+        newTr.querySelector('input[name$="[expiry_date]"]').value = expiryVal;
+        newTr.querySelector('input[name$="[expected_qty]"]').value = 1;
+    }
+
+    syncRowNumbers();
+    toggleEmptyState();
+    updateTotals();
 }
 
 // ── Thêm dòng mới ──────────────────────────────────────────────────
@@ -402,14 +493,6 @@ function updateTotals() {
         });
 }
 
-// ── Khi chọn hàng hóa → tự điền ĐVT ──────────────────────────────
-function onProductChange(sel) {
-    const opt = sel.options[sel.selectedIndex];
-    const td = sel.closest('tr');
-    td.querySelector('.uom-label').textContent = opt.dataset.uom || '—';
-    td.querySelector('.uom-hidden').value = opt.dataset.uomId || '';
-}
-
 // ── Hiện/ẩn NCC theo loại nhập ────────────────────────────────────
 document.getElementById('receiptType').addEventListener('change', function() {
     document.getElementById('supplierGroup').style.display = this.value == '1' ? '' : 'none';
@@ -419,12 +502,80 @@ document.getElementById('receiptType').addEventListener('change', function() {
 document.addEventListener('DOMContentLoaded', () => {
     const type = document.getElementById('receiptType').value;
     if (type != '1') document.getElementById('supplierGroup').style.display = 'none';
+
+    // Áp lại tracking cho các dòng edit-mode (server-render)
+    document.querySelectorAll('#detailBody tr').forEach(tr => {
+        const sel = tr.querySelector('.product-select');
+        if (sel && sel.value) onProductChange(sel);
+    });
+
     toggleEmptyState();
     updateTotals();
 
     @if(!$isEdit)
     addRow();
     @endif
+});
+// ── Xóa lỗi khi user bắt đầu gõ ──────────────────────────────────
+function clearLotError(input) {
+    input.classList.remove('is-invalid');
+    const container = document.getElementById('lotSerialAlertContainer');
+    if (container && !document.querySelector('.lot-serial-input.is-invalid')) {
+        container.innerHTML = '';
+    }
+}
+
+// ── Validate Lot/Serial bắt buộc ─────────────────────────────────
+function validateLotSerial() {
+    const errors = [];
+
+    document.querySelectorAll('#detailBody tr').forEach((tr, i) => {
+        const sel = tr.querySelector('.product-select');
+        const opt = sel?.options[sel.selectedIndex];
+        const tracking = parseInt(opt?.dataset?.tracking) || 1;
+        const lotInput = tr.querySelector('.lot-serial-input');
+
+        if (!lotInput) return;
+        lotInput.classList.remove('is-invalid');
+
+        if (tracking === 2 && !lotInput.value.trim()) {
+            lotInput.classList.add('is-invalid');
+            errors.push(
+                `Dòng ${i + 1}: Hàng quản lý theo <strong>Lô (Lot)</strong> — vui lòng nhập Số Lot/Batch.`);
+        } else if (tracking === 3 && !lotInput.value.trim()) {
+            lotInput.classList.add('is-invalid');
+            errors.push(`Dòng ${i + 1}: Hàng quản lý theo <strong>Serial</strong> — vui lòng nhập Mã Serial.`);
+        }
+    });
+
+    return errors;
+}
+
+// ── Intercept submit ──────────────────────────────────────────────
+document.getElementById('receiptForm').addEventListener('submit', function(e) {
+    const errors = validateLotSerial();
+    if (!errors.length) return; // pass — cho submit
+
+    e.preventDefault();
+
+    const container = document.getElementById('lotSerialAlertContainer');
+    container.innerHTML = `
+        <div class="alert alert-danger alert-dismissible mx-3 mt-3 mb-0" role="alert">
+            <svg class="icon me-1 flex-shrink-0">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-warning') }}"></use>
+            </svg>
+            <strong>Chưa nhập đủ thông tin Lot / Serial:</strong>
+            <ul class="mb-0 mt-1 ps-4">
+                ${errors.map(msg => `<li>${msg}</li>`).join('')}
+            </ul>
+            <button type="button" class="btn-close" data-coreui-dismiss="alert" aria-label="Close"></button>
+        </div>`;
+
+    container.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest'
+    });
+    document.querySelector('.lot-serial-input.is-invalid')?.focus();
 });
 </script>
 @endpush

@@ -11,6 +11,7 @@
 @section('content')
 
 @php
+$fmt = fn($n) => rtrim(rtrim(number_format((float)$n, 3, '.', ','), '0'), '.');
 $statusMap = [
 1 => ['Nháp', 'secondary', 'cil-pencil'],
 2 => ['Chờ duyệt', 'warning', 'cil-clock'],
@@ -236,9 +237,7 @@ $typeLabels = [
                                     <div class="text-body-secondary small">{{ $detail->product?->code }}</div>
                                 </td>
                                 <td class="text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</td>
-                                <td class="text-end fw-semibold">
-                                    {{ number_format($detail->quantity, 3) }}
-                                </td>
+                                <td class="text-end fw-semibold">{{ $fmt($detail->quantity) }}</td>
                                 <td>
                                     <span
                                         class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
@@ -270,11 +269,11 @@ $typeLabels = [
                         @if($transfer->details->count())
                         <tfoot class="table-light">
                             <tr>
-                                <td colspan="3" class="text-end fw-semibold small text-body-secondary">Tổng số lượng:
+                                <td colspan="7" class="text-end fw-semibold small text-body-secondary">
+                                    Tổng cộng: <span class="fw-bold text-body">{{ $transfer->details->count() }} mặt
+                                        hàng</span>
                                 </td>
-                                <td class="text-end fw-bold">{{ number_format($transfer->details->sum('quantity'), 3) }}
-                                </td>
-                                <td colspan="4"></td>
+                                <td></td>
                             </tr>
                         </tfoot>
                         @endif

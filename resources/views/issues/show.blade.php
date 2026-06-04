@@ -11,6 +11,7 @@
 @section('content')
 
 @php
+$fmt = fn($n) => rtrim(rtrim(number_format((float)$n, 3, '.', ','), '0'), '.');
 $statusMap = [
 1 => ['Nháp', 'secondary', 'cil-pencil'],
 2 => ['Chờ duyệt', 'warning', 'cil-clock'],
@@ -244,7 +245,7 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
                                     <div class="text-body-secondary small">{{ $detail->product?->code }}</div>
                                 </td>
                                 <td class="text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</td>
-                                <td class="text-end fw-semibold">{{ number_format($detail->quantity, 3) }}</td>
+                                <td class="text-end fw-semibold">{{ $fmt($detail->quantity) }}</td>
                                 <td>
                                     @if($detail->location)
                                     <span
@@ -292,10 +293,12 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
                         @if($issue->details->count())
                         <tfoot class="table-light">
                             <tr>
-                                <td colspan="3" class="text-end fw-semibold small text-body-secondary">Tổng SL:</td>
-                                <td class="text-end fw-bold">{{ number_format($issue->details->sum('quantity'), 3) }}
+                                <td colspan="{{ in_array($issue->status, [1,2,3]) ? 7 : 6 }}"
+                                    class="text-end fw-semibold small text-body-secondary">
+                                    Tổng cộng: <span class="fw-bold text-body">{{ $issue->details->count() }} mặt
+                                        hàng</span>
                                 </td>
-                                <td colspan="{{ in_array($issue->status, [1,2,3]) ? 4 : 3 }}"></td>
+                                <td></td>
                             </tr>
                         </tfoot>
                         @endif
