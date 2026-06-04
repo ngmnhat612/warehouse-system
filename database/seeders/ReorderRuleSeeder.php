@@ -201,7 +201,5 @@ class ReorderRuleSeeder extends Seeder
                 ]
             );
         }
-
-        $this->command->info('ReorderRuleSeeder: Đã seed ' . count($rules) . ' reorder rules.');
     }
 }

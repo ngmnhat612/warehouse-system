@@ -19,6 +19,8 @@ use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Imports\InventoryCheckImport;
+use Illuminate\Support\Facades\Gate;
 
 class InventoryCheckController extends Controller
 {
@@ -28,6 +30,8 @@ class InventoryCheckController extends Controller
 
     public function index(Request $request)
     {
+        Gate::authorize('stocktake.view');
+
         $query = InventoryCheck::with(['createdBy', 'assignedTo'])
             ->withCount('lines');
 
@@ -68,6 +72,8 @@ class InventoryCheckController extends Controller
 
     public function create()
     {
+        Gate::authorize('stocktake.create');
+
         $users     = User::orderBy('name')->get();
         $locations = Location::where('status', 1)->where('type', 1)->orderBy('code')->get(); // Internal only
         $products  = Product::where('status', 1)->orderBy('code')->get();
@@ -81,6 +87,8 @@ class InventoryCheckController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize('stocktake.create');
+
         $request->validate([
             'check_type'  => 'required|in:1,2,3',
             'check_date'  => 'required|date',
@@ -147,6 +155,8 @@ class InventoryCheckController extends Controller
 
     public function show(InventoryCheck $stocktake)
     {
+        Gate::authorize('stocktake.view');
+
         $stocktake->load([
             'createdBy',
             'assignedTo',
@@ -174,6 +184,8 @@ class InventoryCheckController extends Controller
 
     public function activate(Request $request, InventoryCheck $stocktake)
     {
+        Gate::authorize('stocktake.create');
+
         if ($stocktake->status !== InventoryCheck::STATUS_DRAFT) {
             return redirect()->route('stocktakes.show', $stocktake)
                 ->with('error', 'Phiếu không ở trạng thái Nháp.');
@@ -267,6 +279,8 @@ class InventoryCheckController extends Controller
 
     public function updateLine(Request $request, InventoryCheck $stocktake, InventoryCheckLine $line)
     {
+        Gate::authorize('stocktake.create');
+
         if ($stocktake->status !== InventoryCheck::STATUS_IN_PROGRESS) {
             return response()->json(['error' => 'Phiếu không ở trạng thái Đang kiểm kê.'], 422);
         }
@@ -298,6 +312,8 @@ class InventoryCheckController extends Controller
 
     public function updateLines(Request $request, InventoryCheck $stocktake)
     {
+        Gate::authorize('stocktake.create');
+
         if ($stocktake->status !== InventoryCheck::STATUS_IN_PROGRESS) {
             return redirect()->route('stocktakes.show', $stocktake)
                 ->with('error', 'Phiếu không ở trạng thái Đang kiểm kê.');
@@ -334,11 +350,100 @@ class InventoryCheckController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // TẢI TEMPLATE EXCEL ĐỂ ĐIỀN OFFLINE
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function downloadTemplate(InventoryCheck $stocktake)
+    {
+        Gate::authorize('stocktake.view');
+
+        if ($stocktake->status !== InventoryCheck::STATUS_IN_PROGRESS) {
+            return redirect()->route('stocktakes.show', $stocktake)
+                ->with('error', 'Chỉ tải template khi phiếu đang ở trạng thái Đang kiểm kê.');
+        }
+
+        if ($stocktake->lines()->count() === 0) {
+            return redirect()->route('stocktakes.show', $stocktake)
+                ->with('error', 'Phiếu chưa có dòng kiểm kê. Vui lòng kích hoạt phiếu trước.');
+        }
+
+        $filename = 'Template_KiemKe_' . $stocktake->code . '_' . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(
+            new \App\Exports\InventoryCheckTemplateExport($stocktake),
+            $filename
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // UPLOAD FILE EXCEL ĐÃ ĐIỀN → CẬP NHẬT actual_qty
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function importExcel(Request $request, InventoryCheck $stocktake)
+    {
+        Gate::authorize('stocktake.create');
+
+        if ($stocktake->status !== InventoryCheck::STATUS_IN_PROGRESS) {
+            return redirect()->route('stocktakes.show', $stocktake)
+                ->with('error', 'Chỉ nhập Excel khi phiếu đang ở trạng thái Đang kiểm kê.');
+        }
+
+        $request->validate([
+            'excel_file' => [
+                'required',
+                'file',
+                'mimes:xlsx,xls',
+                'max:10240', // 10 MB
+            ],
+        ], [
+            'excel_file.required' => 'Vui lòng chọn file Excel.',
+            'excel_file.mimes'    => 'File phải là định dạng .xlsx hoặc .xls.',
+            'excel_file.max'      => 'File không được vượt quá 10MB.',
+        ]);
+
+        try {
+            $importer = new \App\Imports\InventoryCheckImport($stocktake->id);
+
+            Excel::import($importer, $request->file('excel_file'));
+
+            $message = "Đã cập nhật {$importer->updatedCount} dòng.";
+
+            if ($importer->skippedCount > 0) {
+                $message .= " Bỏ qua {$importer->skippedCount} dòng (trống hoặc không hợp lệ).";
+            }
+
+            if (!empty($importer->errors)) {
+                // Trả lỗi chi tiết qua session
+                $errorMessages = collect($importer->errors)->pluck('message')->join(' | ');
+                return redirect()->route('stocktakes.show', $stocktake)
+                    ->with('warning', $message . ' Lỗi: ' . $errorMessages);
+            }
+
+            return redirect()->route('stocktakes.show', $stocktake)
+                ->with('success', $message);
+
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = collect($e->failures())
+                ->map(fn($f) => "Dòng {$f->row()}: " . implode(', ', $f->errors()))
+                ->join(' | ');
+
+            return redirect()->route('stocktakes.show', $stocktake)
+                ->with('error', 'Lỗi dữ liệu trong file Excel: ' . $failures);
+
+        } catch (\Exception $e) {
+            return redirect()->route('stocktakes.show', $stocktake)
+                ->with('error', 'Không thể đọc file Excel: ' . $e->getMessage());
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // HOÀN THÀNH KIỂM KÊ → đánh dấu DONE (chưa điều chỉnh stock)
     // ──────────────────────────────────────────────────────────────────────────
 
     public function complete(InventoryCheck $stocktake)
     {
+        Gate::authorize('stocktake.create');
+
         if ($stocktake->status !== InventoryCheck::STATUS_IN_PROGRESS) {
             return redirect()->route('stocktakes.show', $stocktake)
                 ->with('error', 'Phiếu không ở trạng thái Đang kiểm kê.');
@@ -365,9 +470,18 @@ class InventoryCheckController extends Controller
 
     public function createAdjustment(InventoryCheck $stocktake)
     {
+        Gate::authorize('stocktake.adjust');
+
         if (!in_array($stocktake->status, [InventoryCheck::STATUS_IN_PROGRESS, InventoryCheck::STATUS_DONE])) {
             return redirect()->route('stocktakes.show', $stocktake)
                 ->with('error', 'Chỉ tạo phiếu điều chỉnh khi kiểm kê Đang thực hiện hoặc Hoàn thành.');
+        }
+
+        // ── THÊM MỚI: bắt buộc nhập đủ actual_qty trước khi tạo điều chỉnh ──
+        $uncounted = $stocktake->lines()->whereNull('actual_qty')->count();
+        if ($uncounted > 0) {
+            return redirect()->route('stocktakes.show', $stocktake)
+                ->with('error', "Còn {$uncounted} dòng chưa nhập số lượng thực tế. Vui lòng nhập đủ trước khi tạo phiếu điều chỉnh.");
         }
 
         // Chỉ lấy các dòng có chênh lệch
@@ -425,6 +539,8 @@ class InventoryCheckController extends Controller
 
     public function showAdjustment(InventoryCheck $stocktake, StockAdjustment $adjustment)
     {
+        Gate::authorize('stocktake.view');
+
         $adjustment->load([
             'createdBy',
             'approvedBy',
@@ -444,6 +560,8 @@ class InventoryCheckController extends Controller
 
     public function applyAdjustment(InventoryCheck $stocktake, StockAdjustment $adjustment)
     {
+        Gate::authorize('stocktake.adjust');
+
         if ($adjustment->status !== StockAdjustment::STATUS_DRAFT &&
             $adjustment->status !== StockAdjustment::STATUS_APPROVED) {
             return redirect()->route('stocktakes.adjustment.show', [$stocktake, $adjustment])
@@ -451,27 +569,40 @@ class InventoryCheckController extends Controller
         }
 
         DB::transaction(function () use ($stocktake, $adjustment) {
-            $adjustment->load('details');
+
+            $adjustment->load([
+                'details.product',
+                'details.location',
+            ]);
 
             foreach ($adjustment->details as $detail) {
                 $diff = (float) $detail->actual_qty - (float) $detail->system_qty;
-                if ($diff == 0) {
-                    continue;
-                }
+                if ($diff == 0) continue;
 
-                // Tìm dòng stock tương ứng
                 $stock = Stock::where('product_id', $detail->product_id)
                     ->where('location_id', $detail->location_id)
-                    ->when($detail->lot_id, fn($q) => $q->where('lot_id', $detail->lot_id))
+                    ->when($detail->lot_id,  fn($q) => $q->where('lot_id', $detail->lot_id))
                     ->when(!$detail->lot_id, fn($q) => $q->whereNull('lot_id'))
+                    ->lockForUpdate()
                     ->first();
 
                 if ($stock) {
-                    $stock->quantity   = (float) $detail->actual_qty;
+                    $stock->quantity = $stock->quantity + $diff;
+
+                    if ($stock->quantity < 0) {
+                        $previousQty = $stock->quantity - $diff;
+                        throw new \Exception(
+                            "Tồn kho âm sau điều chỉnh: {$detail->product->code} " .
+                            "tại {$detail->location->code}. " .
+                            "Tồn hiện tại: {$previousQty}, Diff: {$diff}"
+                        );
+                    }
+
                     $stock->updated_at = now();
                     $stock->save();
                 } else {
-                    // Tạo dòng stock mới nếu tồn mới xuất hiện sau kiểm kê
+                    if ($detail->actual_qty <= 0) continue;
+
                     $stock = Stock::create([
                         'product_id'   => $detail->product_id,
                         'location_id'  => $detail->location_id,
@@ -484,7 +615,6 @@ class InventoryCheckController extends Controller
                     ]);
                 }
 
-                // Ghi stock_ledger
                 StockLedger::create([
                     'product_id'       => $detail->product_id,
                     'stock_id'         => $stock->id,
@@ -495,13 +625,18 @@ class InventoryCheckController extends Controller
                     'reference_id'     => $adjustment->id,
                     'reference_type'   => 'stock_adjustment',
                     'reference_code'   => $adjustment->code,
-                    'direction'        => $diff > 0 ? 1 : 2, // IN nếu tăng, OUT nếu giảm
+                    'direction'        => $diff > 0 ? 1 : 2,
                     'quantity'         => abs($diff),
                     'balance_after'    => $stock->quantity,
                     'created_by'       => Auth::id(),
                     'note'             => "Điều chỉnh kiểm kê {$stocktake->code}",
                     'transaction_date' => now(),
                 ]);
+            }
+
+            $freeze = $stocktake->freeze;
+            if ($freeze && $freeze->isActive()) {
+                $freeze->unfreeze();
             }
 
             $adjustment->update([
@@ -520,6 +655,8 @@ class InventoryCheckController extends Controller
 
     public function unfreeze(InventoryCheck $stocktake)
     {
+        Gate::authorize('stocktake.unfreeze');
+
         if (!in_array($stocktake->status, [InventoryCheck::STATUS_IN_PROGRESS, InventoryCheck::STATUS_DONE])) {
             return redirect()->route('stocktakes.show', $stocktake)
                 ->with('error', 'Chỉ gỡ đóng băng khi kiểm kê đang thực hiện hoặc đã hoàn thành.');
@@ -543,6 +680,8 @@ class InventoryCheckController extends Controller
 
     public function cancel(InventoryCheck $stocktake)
     {
+        Gate::authorize('stocktake.create');
+
         if ($stocktake->status === InventoryCheck::STATUS_DONE) {
             return redirect()->route('stocktakes.show', $stocktake)
                 ->with('error', 'Không thể hủy phiếu kiểm kê đã hoàn thành.');
@@ -565,5 +704,34 @@ class InventoryCheckController extends Controller
 
         return redirect()->route('stocktakes.show', $stocktake)
             ->with('success', "Đã hủy phiếu kiểm kê {$stocktake->code}.");
+    }
+
+    public function exportPdf(InventoryCheck $stocktake)
+    {
+        Gate::authorize('stocktake.view');
+
+        $stocktake->load([
+            'createdBy',
+            'assignedTo',
+            'lines.product.uom',
+            'lines.location',
+            'lines.lot',
+        ]);
+
+        $lines         = $stocktake->lines;
+        $totalLines    = $lines->count();
+        $countedLines  = $lines->whereNotNull('actual_qty')->count();
+        $matchLines    = $lines->filter(fn($l) => $l->actual_qty !== null && $l->diff_qty == 0)->count();
+        $diffLines     = $lines->filter(fn($l) => $l->actual_qty !== null && $l->diff_qty != 0)->count();
+        $uncountedLines= $totalLines - $countedLines;
+        $diffLinesList = $lines->filter(fn($l) => $l->actual_qty !== null && $l->diff_qty != 0)->values();
+
+        $pdf = Pdf::loadView('stocktakes.pdf', compact(
+            'stocktake', 'lines',
+            'totalLines', 'matchLines', 'diffLines', 'uncountedLines', 'diffLinesList',
+        ) + ['check' => $stocktake])
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->download('KiemKe_' . $stocktake->code . '_' . now()->format('Ymd') . '.pdf');
     }
 }

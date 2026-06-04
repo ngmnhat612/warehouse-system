@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class StockAdjustment extends Model
 {
+    use LogsActivity;
+
     protected $table = 'stock_adjustments';
 
     protected $fillable = [
@@ -15,6 +19,7 @@ class StockAdjustment extends Model
 
     protected $casts = [
         'adjustment_date' => 'date',
+        'status'          => 'integer',
     ];
 
     // status constants
@@ -60,5 +65,18 @@ class StockAdjustment extends Model
     public function confirmedBy()
     {
         return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['code', 'status', 'inventory_check_id', 'adjustment_date', 'note'])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $event) => match($event) {
+                'created' => "Tạo phiếu điều chỉnh tồn kho \"{$this->code}\"",
+                'updated' => "Cập nhật phiếu điều chỉnh \"{$this->code}\"",
+                'deleted' => "Xóa phiếu điều chỉnh \"{$this->code}\"",
+                default   => $event,
+            });
     }
 }

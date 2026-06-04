@@ -210,38 +210,6 @@ class StockTransactionSeeder extends Seeder
             ]);
         }
 
-        // Phiếu kiểm kê
-        // inventory_checks: code, check_type(tinyint), status(tinyint), created_by
-        // KHÔNG có cột reference_no
-        if (!DB::table('inventory_checks')->where('code', 'IC-2026-0001')->exists()) {
-            $checkId = DB::table('inventory_checks')->insertGetId([
-                'code'       => 'IC-2026-0001',
-                'check_type' => 1,     // Toàn kho
-                'created_by' => $userId,
-                'status'     => 2,     // InProgress
-                'check_date' => $now->toDateString(),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            // inventory_freezes — theo migration: check_id, check_type, frozen_by, frozen_at
-            // KHÔNG có cột location_id trực tiếp (scope qua inventory_freeze_details)
-            $freezeId = DB::table('inventory_freezes')->insertGetId([
-                'check_id'   => $checkId,
-                'check_type' => 1,
-                'frozen_by'  => $userId,
-                'frozen_at'  => $now,
-            ]);
-
-            // inventory_freeze_details — freeze_scope: 1=Toàn kho, 2=location, 3=product
-            DB::table('inventory_freeze_details')->insert([
-                'freeze_id'    => $freezeId,
-                'freeze_scope' => 2,   // theo location
-                'location_id'  => $locWhShelfA1,
-                'product_id'   => null,
-            ]);
-        }
-
         // ── 5. DỮ LIỆU MÔ PHỎNG BIỂU ĐỒ DASHBOARD (30 ngày) ────────────────
         $sampleProducts = $products
             ->whereNotIn('id', [$prodNone->id, $prodLot->id, $prodSerial->id])
