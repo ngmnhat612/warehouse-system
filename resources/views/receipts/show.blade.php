@@ -73,7 +73,7 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
         @endif
 
         {{-- PENDING: Duyệt phiếu --}}
-        @if((int) $receipt->status === 2)
+        @if((int) $receipt->status === 2 && auth()->user()->can('receipt.approve'))
         <form method="POST" action="{{ route('receipts.approve', $receipt) }}">
             @csrf
             <button type="submit" class="btn btn-primary">

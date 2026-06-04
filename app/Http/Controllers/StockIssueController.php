@@ -13,6 +13,7 @@ use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class StockIssueController extends Controller
 {
@@ -290,6 +291,8 @@ class StockIssueController extends Controller
 
     public function approve(StockIssue $issue)
     {
+        Gate::authorize('issue.approve');
+
         if ((int) $issue->status !== StockIssue::STATUS_PENDING) {
             return redirect()->route('issues.show', $issue)
                 ->with('error', 'Chỉ có thể duyệt phiếu đang ở trạng thái Chờ duyệt.');

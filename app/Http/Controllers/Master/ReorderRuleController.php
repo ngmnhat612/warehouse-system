@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ReorderRule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class ReorderRuleController extends Controller
 {
@@ -68,6 +69,8 @@ class ReorderRuleController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $this->validateRule($request);
 
         ReorderRule::create([
@@ -86,6 +89,8 @@ class ReorderRuleController extends Controller
 
     public function update(Request $request, ReorderRule $reorder_rule)
     {
+        Gate::authorize('master.edit');
+
         $this->validateRule($request, $reorder_rule->id);
 
         $reorder_rule->update([
@@ -104,6 +109,8 @@ class ReorderRuleController extends Controller
 
     public function destroy(ReorderRule $reorder_rule)
     {
+        Gate::authorize('master.delete');
+        
         $reorder_rule->delete();
 
         return redirect()->route('master.reorder_rule.index')

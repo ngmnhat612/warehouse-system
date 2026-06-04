@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Uom;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class BomController extends Controller
 {
@@ -43,6 +44,8 @@ class BomController extends Controller
      */
     public function create()
     {
+        Gate::authorize('master.create');
+
         $products = Product::active()->orderBy('code')->get();
         $uoms     = Uom::active()->orderBy('name')->get();
 
@@ -51,6 +54,8 @@ class BomController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $this->validateBom($request);
         $this->validateDetails($request);
         $this->validateNoCircularReference($request);
@@ -76,6 +81,8 @@ class BomController extends Controller
      */
     public function edit(Bom $bom)
     {
+        Gate::authorize('master.edit');
+
         $bom->load(['details.product', 'details.uom']);
         $products = Product::active()->orderBy('code')->get();
         $uoms     = Uom::active()->orderBy('name')->get();
@@ -85,6 +92,8 @@ class BomController extends Controller
 
     public function update(Request $request, Bom $bom)
     {
+        Gate::authorize('master.edit');
+
         $this->validateBom($request, $bom->id);
         $this->validateDetails($request);
         $this->validateNoCircularReference($request, $bom->id);
@@ -109,6 +118,8 @@ class BomController extends Controller
 
     public function destroy(Bom $bom)
     {
+        Gate::authorize('master.delete');
+
         $name = $bom->name;
         $bom->delete(); // cascade xóa bom_details
 

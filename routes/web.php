@@ -191,6 +191,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('transfers/stock-locations', [StockTransferController::class, 'stockLocations'])->name('transfers.stock-locations');
     Route::resource('transfers', StockTransferController::class);
+    Route::post('transfers/{transfer}/submit',  [StockTransferController::class, 'submit'])->name('transfers.submit');
+    Route::post('transfers/{transfer}/approve', [StockTransferController::class, 'approve'])->name('transfers.approve');
     Route::post('transfers/{transfer}/confirm', [StockTransferController::class, 'confirm'])->name('transfers.confirm');
     Route::post('transfers/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('transfers.cancel');
 
