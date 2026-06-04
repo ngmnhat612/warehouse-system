@@ -13,11 +13,11 @@
 @php
 $fmt = fn($n) => rtrim(rtrim(number_format((float)$n, 3, '.', ','), '0'), '.');
 $statusMap = [
-    1 => ['Nháp',       'secondary', 'cil-pencil'],
-    2 => ['Chờ duyệt',  'warning',   'cil-clock'],
-    3 => ['Đã duyệt',   'info',      'cil-check'],
-    4 => ['Hoàn thành', 'success',   'cil-check-circle'],
-    5 => ['Đã hủy',     'danger',    'cil-x-circle'],
+1 => ['Nháp', 'secondary', 'cil-pencil'],
+2 => ['Chờ duyệt', 'warning', 'cil-clock'],
+3 => ['Đã duyệt', 'info', 'cil-check'],
+4 => ['Hoàn thành', 'success', 'cil-check-circle'],
+5 => ['Đã hủy', 'danger', 'cil-x-circle'],
 ];
 [$statusText, $statusColor, $statusIcon] = $statusMap[$transfer->status] ?? ['?', 'secondary', 'cil-info'];
 $typeLabels = [1 => 'Sắp xếp kho', 2 => 'Từ Quarantine', 3 => 'Khác'];
@@ -29,7 +29,8 @@ $transferStatus = (int) $transfer->status;
     <div>
         <h4 class="mb-1 fw-semibold d-flex align-items-center gap-2">
             {{ $transfer->code }}
-            <span class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }}-emphasis border border-{{ $statusColor }}-subtle rounded-pill fs-6">
+            <span
+                class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }}-emphasis border border-{{ $statusColor }}-subtle rounded-pill fs-6">
                 <svg class="icon me-1">
                     <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#' . $statusIcon) }}"></use>
                 </svg>
@@ -101,7 +102,7 @@ $transferStatus = (int) $transfer->status;
             <svg class="icon me-1">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
             </svg>
-            In phiếu
+            Xuất PDF
         </a>
         @endif
 
@@ -157,14 +158,14 @@ $transferStatus = (int) $transfer->status;
             @endphp
             @foreach($steps as $step => $label)
             @php
-            $done    = $transferStatus >= $step && $transferStatus !== 5;
+            $done = $transferStatus >= $step && $transferStatus !== 5;
             $current = $transferStatus === $step;
-            $color       = $done ? 'success' : 'secondary';
-            $bgClass     = 'bg-' . $color . ($current ? '' : '-subtle');
-            $textClass   = 'text-' . $color . ($current ? ' text-white' : '');
+            $color = $done ? 'success' : 'secondary';
+            $bgClass = 'bg-' . $color . ($current ? '' : '-subtle');
+            $textClass = 'text-' . $color . ($current ? ' text-white' : '');
             $borderClass = 'border-' . $color;
-            $fwClass     = $current ? 'fw-semibold' : 'fw-normal';
-            $lineClass   = $transferStatus > $step ? 'border-success' : 'border-secondary';
+            $fwClass = $current ? 'fw-semibold' : 'fw-normal';
+            $lineClass = $transferStatus > $step ? 'border-success' : 'border-secondary';
             @endphp
             <div class="d-flex flex-column align-items-center flex-fill">
                 <div class="rounded-circle d-flex align-items-center justify-content-center mb-1 border border-2 {{ $bgClass }} {{ $textClass }} {{ $borderClass }}"
@@ -173,12 +174,13 @@ $transferStatus = (int) $transfer->status;
                 </div>
                 <small class="{{ $textClass }} {{ $fwClass }}">{{ $label }}</small>
             </div>
-            @if($step < 4)
-            <div class="flex-fill border-top border-2 mt-2 mb-auto {{ $lineClass }}" style="max-width:60px"></div>
-            @endif
-            @endforeach
+            @if($step < 4) <div class="flex-fill border-top border-2 mt-2 mb-auto {{ $lineClass }}"
+                style="max-width:60px">
         </div>
+        @endif
+        @endforeach
     </div>
+</div>
 </div>
 
 <div class="row g-4">
@@ -205,7 +207,8 @@ $transferStatus = (int) $transfer->status;
 
                     <dt class="col-sm-5 text-body-secondary">Trạng thái</dt>
                     <dd class="col-sm-7">
-                        <span class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }}-emphasis border border-{{ $statusColor }}-subtle rounded-pill">
+                        <span
+                            class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }}-emphasis border border-{{ $statusColor }}-subtle rounded-pill">
                             {{ $statusText }}
                         </span>
                     </dd>
@@ -286,7 +289,8 @@ $transferStatus = (int) $transfer->status;
                                 <td class="text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</td>
                                 <td class="text-end fw-semibold">{{ $fmt($detail->quantity) }}</td>
                                 <td>
-                                    <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
+                                    <span
+                                        class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
                                         {{ $detail->fromLocation?->code ?? '—' }}
                                     </span>
                                     @if($detail->fromLocation?->name)
@@ -294,7 +298,8 @@ $transferStatus = (int) $transfer->status;
                                     @endif
                                 </td>
                                 <td>
-                                    <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+                                    <span
+                                        class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">
                                         {{ $detail->toLocation?->code ?? '—' }}
                                     </span>
                                     @if($detail->toLocation?->name)
@@ -306,7 +311,8 @@ $transferStatus = (int) $transfer->status;
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="8" class="text-center text-body-secondary py-4">Không có dòng chi tiết.</td>
+                                <td colspan="8" class="text-center text-body-secondary py-4">Không có dòng chi tiết.
+                                </td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -398,7 +404,8 @@ $transferStatus = (int) $transfer->status;
                     @csrf
                     <button type="submit" class="btn btn-success">
                         <svg class="icon me-1">
-                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use>
+                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}">
+                            </use>
                         </svg>
                         Xác nhận & cập nhật tồn kho
                     </button>

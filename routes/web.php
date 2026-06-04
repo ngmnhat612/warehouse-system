@@ -196,16 +196,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('transfers/{transfer}/confirm', [StockTransferController::class, 'confirm'])->name('transfers.confirm');
     Route::post('transfers/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('transfers.cancel');
 
+    Route::resource('scraps', ScrapController::class);
+    Route::post('scraps/{scrap}/submit',  [ScrapController::class, 'submit'])->name('scraps.submit');
+    Route::post('scraps/{scrap}/approve', [ScrapController::class, 'approve'])->name('scraps.approve');
+    Route::post('scraps/{scrap}/cancel',  [ScrapController::class, 'cancel'])->name('scraps.cancel');
+
     // ── KIỂM KÊ ───────────────────────────────────────────────────────
     Route::resource('stocktakes', InventoryCheckController::class);
     Route::post('stocktakes/{stocktake}/activate',  [InventoryCheckController::class, 'activate'])->name('stocktakes.activate');
     Route::post('stocktakes/{stocktake}/complete',  [InventoryCheckController::class, 'complete'])->name('stocktakes.complete');
     Route::post('stocktakes/{stocktake}/unfreeze',  [InventoryCheckController::class, 'unfreeze'])->name('stocktakes.unfreeze');
     Route::delete('stocktakes/{stocktake}/cancel',  [InventoryCheckController::class, 'cancel'])->name('stocktakes.cancel');
-    
+
     // Lines — cập nhật hàng loạt
     Route::post('stocktakes/{stocktake}/lines',     [InventoryCheckController::class, 'updateLines'])->name('stocktakes.lines.update');
-    
+
     // Điều chỉnh tồn kho
     Route::post('stocktakes/{stocktake}/adjustment',              [InventoryCheckController::class, 'createAdjustment'])->name('stocktakes.adjustment.create');
     Route::get('stocktakes/{stocktake}/adjustment/{adjustment}',  [InventoryCheckController::class, 'showAdjustment'])->name('stocktakes.adjustment.show');
@@ -213,7 +218,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('stocktakes/{stocktake}/export/excel', [InventoryCheckController::class, 'exportExcel'])->name('stocktakes.export.excel');
     Route::get('stocktakes/{stocktake}/export/pdf',   [InventoryCheckController::class, 'exportPdf'])->name('stocktakes.export.pdf');
-    
+
     // ── TỒN KHO ───────────────────────────────────────────────────────
     Route::prefix('inventory')->name('inventory.')->group(function () {
         Route::get('/',              [InventoryController::class, 'index'])->name('index');
@@ -230,6 +235,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::get('transfers/{transfer}/print', [StockTransferController::class, 'printPdf'])->name('transfers.print');
     Route::get('scraps/{scrap}/print',       [ScrapController::class,       'printPdf'])->name('scraps.print');
+    Route::get('receipts/{receipt}/print',   [StockReceiptController::class, 'printPdf'])->name('receipts.print');
+    Route::get('issues/{issue}/print', [StockIssueController::class, 'printPdf'])->name('issues.print');
 });
 
 require __DIR__.'/auth.php';
