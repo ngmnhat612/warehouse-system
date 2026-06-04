@@ -59,12 +59,13 @@ class StockReceiptController extends Controller
     {
         $products      = Product::with('uom')->where('status', 1)->orderBy('code')->get();
         $productsJson  = $products->map(fn($p) => [
-            'id'     => $p->id,
-            'code'   => $p->code,
-            'name'   => $p->name,
-            'uom'    => $p->uom?->name ?? '—',
-            'uom_id' => $p->uom_id,
-            'stock'  => (float) ($p->total_stock ?? 0),
+            'id'       => $p->id,
+            'code'     => $p->code,
+            'name'     => $p->name,
+            'uom'      => $p->uom?->name ?? '—',
+            'uom_id'   => $p->uom_id,
+            'stock'    => (float) ($p->total_stock ?? 0),
+            'tracking' => (int) ($p->tracking_type ?? 1), // 1=none, 2=lot, 3=serial
         ])->values();
                 $suppliers     = Supplier::orderBy('name')->get();
                 $locations     = Location::where('type', 1)->orderBy('code')->get();
@@ -85,6 +86,7 @@ class StockReceiptController extends Controller
     public function store(Request $request)
     {
         $this->validateReceipt($request);
+        $this->validateLotSerialRequired($request->details ?? []);
 
         DB::transaction(function () use ($request) {
             $code = $request->code
@@ -143,12 +145,13 @@ class StockReceiptController extends Controller
 
         $products      = Product::with('uom')->where('status', 1)->orderBy('code')->get();
         $productsJson  = $products->map(fn($p) => [
-            'id'     => $p->id,
-            'code'   => $p->code,
-            'name'   => $p->name,
-            'uom'    => $p->uom?->name ?? '—',
-            'uom_id' => $p->uom_id,
-            'stock'  => (float) ($p->total_stock ?? 0),
+            'id'       => $p->id,
+            'code'     => $p->code,
+            'name'     => $p->name,
+            'uom'      => $p->uom?->name ?? '—',
+            'uom_id'   => $p->uom_id,
+            'stock'    => (float) ($p->total_stock ?? 0),
+            'tracking' => (int) ($p->tracking_type ?? 1), // 1=none, 2=lot, 3=serial
         ])->values();
         $suppliers     = Supplier::orderBy('name')->get();
         $locations     = Location::where('type', 1)->orderBy('code')->get();
@@ -178,6 +181,7 @@ class StockReceiptController extends Controller
         }
 
         $this->validateReceipt($request, isUpdate: true);
+        $this->validateLotSerialRequired($request->details ?? []);
 
         DB::transaction(function () use ($request, $receipt) {
             $receipt->update([
@@ -423,18 +427,15 @@ class StockReceiptController extends Controller
         foreach ($details as $row) {
             if (empty($row['product_id']) || empty($row['expected_qty'])) continue;
 
-            $product = Product::find($row['product_id']);
-            $lotId   = null;
+            $product    = Product::find($row['product_id']);
+            $lotId      = null;
+            $serialId   = null;
+            $lotSerial  = trim($row['lot_number'] ?? '');
 
-            if (
-                !empty($row['lot_number']) &&
-                in_array($product?->tracking_type, [
-                    Product::TRACKING_LOT,
-                    Product::TRACKING_LOT_AND_SERIAL,
-                ])
-            ) {
+            // tracking_type = 2 → tạo/tìm Lot
+            if ($lotSerial && $product?->tracking_type === Product::TRACKING_LOT) {
                 $lot = Lot::firstOrCreate(
-                    ['product_id' => $row['product_id'], 'lot_number' => trim($row['lot_number'])],
+                    ['product_id' => $row['product_id'], 'lot_number' => $lotSerial],
                     [
                         'supplier_id'   => $receipt->supplier_id,
                         'received_date' => $receipt->receipt_date,
@@ -443,6 +444,15 @@ class StockReceiptController extends Controller
                     ]
                 );
                 $lotId = $lot->id;
+            }
+
+            // tracking_type = 3 → tạo/tìm Serial (mỗi dòng = 1 serial độc nhất)
+            if ($lotSerial && $product?->tracking_type === Product::TRACKING_SERIAL) {
+                $serial = Serial::firstOrCreate(
+                    ['product_id' => $row['product_id'], 'serial_number' => $lotSerial],
+                    ['status' => 1, 'received_date' => $receipt->receipt_date]
+                );
+                $serialId = $serial->id;
             }
 
             // Gợi ý vị trí putaway nếu user chưa chọn
@@ -459,6 +469,7 @@ class StockReceiptController extends Controller
                 'product_id'       => $row['product_id'],
                 'uom_id'           => $row['uom_id'],
                 'lot_id'           => $lotId,
+                'serial_id'        => $serialId,
                 'location_id'      => $locationId,
                 'expected_qty'     => $row['expected_qty'],
                 'actual_qty'       => $row['actual_qty'] ?: null,
@@ -482,5 +493,36 @@ class StockReceiptController extends Controller
     private function defaultLocationId(): int
     {
         return Location::where('type', 1)->orderBy('id')->value('id') ?? 1;
+    }
+
+    /**
+     * Bắt buộc nhập Lot/Serial theo tracking_type của từng sản phẩm.
+     */
+    private function validateLotSerialRequired(array $details): void
+    {
+        $errors = [];
+
+        foreach ($details as $i => $row) {
+            if (empty($row['product_id'])) continue;
+
+            $product  = Product::find($row['product_id']);
+            $tracking = (int) ($product?->tracking_type ?? Product::TRACKING_NONE);
+            $value    = trim($row['lot_number'] ?? '');
+            $line     = $i + 1;
+
+            if ($tracking === Product::TRACKING_LOT && $value === '') {
+                $errors["details.{$i}.lot_number"] =
+                    "Dòng {$line}: Hàng quản lý theo Lô — vui lòng nhập Số Lot/Batch.";
+            }
+
+            if ($tracking === Product::TRACKING_SERIAL && $value === '') {
+                $errors["details.{$i}.lot_number"] =
+                    "Dòng {$line}: Hàng quản lý theo Serial — vui lòng nhập Mã Serial.";
+            }
+        }
+
+        if (!empty($errors)) {
+            throw \Illuminate\Validation\ValidationException::withMessages($errors);
+        }
     }
 }
