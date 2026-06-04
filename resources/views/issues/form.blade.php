@@ -362,8 +362,10 @@ function rowTemplate(i) {
       </select>
     </td>
     <td>
-      <select class="form-select form-select-sm lot-select" name="details[${i}][lot_id]">
-        <option value="">— Không chọn —</option>
+      <input type="hidden" name="details[${i}][lot_id]"    class="lot-id-hidden"    value="">
+      <input type="hidden" name="details[${i}][serial_id]" class="serial-id-hidden" value="">
+      <select class="form-select form-select-sm lot-select">
+        <option value="">— Chọn vị trí trước —</option>
       </select>
     </td>
     <td class="text-end small stock-display text-body-secondary">—</td>
@@ -464,6 +466,7 @@ window.onProductChange = function(sel) {
                         name: s.location_name,
                         available_qty: 0,
                         lots: [],
+                        serials: [],
                     };
                 }
                 locMap[s.location_id].available_qty += s.available_qty;
@@ -472,6 +475,13 @@ window.onProductChange = function(sel) {
                         id: s.lot_id,
                         lot_number: s.lot_number,
                         expiry_date: s.expiry_date,
+                        available_qty: s.available_qty,
+                    });
+                }
+                if (s.serial_id) {
+                    locMap[s.location_id].serials.push({
+                        id: s.serial_id,
+                        serial_number: s.serial_number,
                         available_qty: s.available_qty,
                     });
                 }
@@ -509,31 +519,78 @@ window.onProductChange = function(sel) {
     checkStock(tr.querySelector('.qty-input'));
 }
 
-// ── Khi chọn vị trí → cập nhật lot tương ứng ─────────────────────
+// ── Khi chọn vị trí → cập nhật lot/serial tương ứng ──────────────
 window.onLocationChange = function(locationSel) {
     const tr = locationSel.closest('tr');
     const lotSel = tr.querySelector('.lot-select');
+    const lotHidden = tr.querySelector('.lot-id-hidden');
+    const serialHidden = tr.querySelector('.serial-id-hidden');
     const locationId = parseInt(locationSel.value);
     const stockMap = tr.dataset.stockMap ? JSON.parse(tr.dataset.stockMap) : {};
+
+    // Reset hidden fields
+    if (lotHidden) lotHidden.value = '';
+    if (serialHidden) serialHidden.value = '';
 
     if (!locationId || !stockMap[locationId]) {
         lotSel.innerHTML = '<option value="">— Không chọn —</option>';
         return;
     }
 
-    const lots = stockMap[locationId].lots;
-    lotSel.innerHTML = '<option value="">— Không chọn —</option>' +
-        lots.map(l =>
-            `<option value="${l.id}">` +
-            `${l.lot_number}` +
-            `${l.expiry_date ? ' (HSD: ' + l.expiry_date + ')' : ''}` +
-            ` — Tồn: ${l.available_qty.toLocaleString('vi-VN')}` +
-            `</option>`
-        ).join('');
+    const lots = stockMap[locationId].lots || [];
+    const serials = stockMap[locationId].serials || [];
+    let html = '<option value="">— Không chọn —</option>';
 
-    // Tự động chọn lot đầu tiên nếu chỉ có 1
-    if (lots.length === 1) lotSel.value = lots[0].id;
+    if (lots.length) {
+        html += '<optgroup label="Lot / Batch">' +
+            lots.map(l =>
+                `<option value="lot:${l.id}">` +
+                `${l.lot_number}` +
+                `${l.expiry_date ? ' · HSD: ' + l.expiry_date : ''}` +
+                ` · Tồn: ${l.available_qty.toLocaleString('vi-VN')}` +
+                `</option>`
+            ).join('') +
+            '</optgroup>';
+    }
+
+    if (serials.length) {
+        html += '<optgroup label="Serial">' +
+            serials.map(s =>
+                `<option value="serial:${s.id}">` +
+                `${s.serial_number}` +
+                ` · Tồn: ${s.available_qty.toLocaleString('vi-VN')}` +
+                `</option>`
+            ).join('') +
+            '</optgroup>';
+    }
+
+    lotSel.innerHTML = html;
+
+    // Tự động chọn nếu chỉ có 1 option (lot hoặc serial)
+    const allItems = [...lots, ...serials];
+    if (allItems.length === 1) {
+        lotSel.selectedIndex = 1;
+        lotSel.dispatchEvent(new Event('change'));
+    }
 }
+
+// ── Khi chọn lot/serial → cập nhật hidden fields ──────────────────
+document.addEventListener('change', function(e) {
+    if (!e.target.classList.contains('lot-select')) return;
+    const tr = e.target.closest('tr');
+    const lotHidden = tr.querySelector('.lot-id-hidden');
+    const serialHidden = tr.querySelector('.serial-id-hidden');
+    const val = e.target.value; // "lot:5" | "serial:12" | ""
+
+    if (lotHidden) lotHidden.value = '';
+    if (serialHidden) serialHidden.value = '';
+
+    if (val.startsWith('lot:')) {
+        if (lotHidden) lotHidden.value = val.split(':')[1];
+    } else if (val.startsWith('serial:')) {
+        if (serialHidden) serialHidden.value = val.split(':')[1];
+    }
+});
 
 // ── Kiểm tra SL xuất so với tồn ───────────────────────────────────
 window.checkStock = function(qtyInput) {

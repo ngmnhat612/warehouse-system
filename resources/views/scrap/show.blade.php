@@ -202,6 +202,12 @@ $s = (int) $scrap->status;
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-coreui-dismiss="modal">Hủy bỏ</button>
+                <a href="{{ route('scraps.print', $scrap) }}" target="_blank" class="btn btn-outline-secondary btn-sm">
+                    <svg class="icon me-1">
+                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
+                    </svg>
+                    In phiếu
+                </a>
                 <form method="POST" action="{{ route('scraps.approve', $scrap) }}">
                     @csrf
                     <button type="submit" class="btn btn-danger">
@@ -210,13 +216,6 @@ $s = (int) $scrap->status;
                         </svg>
                         Xác nhận hủy hàng
                     </button>
-                    <a href="{{ route('scraps.print', $scrap) }}" target="_blank"
-                        class="btn btn-outline-secondary btn-sm">
-                        <svg class="icon me-1">
-                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
-                        </svg>
-                        In phiếu
-                    </a>
                 </form>
             </div>
         </div>

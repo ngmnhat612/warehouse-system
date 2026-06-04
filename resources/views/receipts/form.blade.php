@@ -403,11 +403,48 @@ function onProductChange(sel) {
     const opt = sel.options[sel.selectedIndex];
     const tr = sel.closest('tr');
     const tracking = parseInt(opt.dataset.tracking) || 1;
+    const productId = opt.value;
 
     tr.querySelector('.uom-label').textContent = opt.dataset.uom || '—';
     tr.querySelector('.uom-hidden').value = opt.dataset.uomId || '';
 
     applyTracking(tr, tracking);
+
+    // ── AJAX: Gợi ý vị trí Putaway ────────────────────────────────
+    const locationSel = tr.querySelector('select[name$="[location_id]"]');
+    if (!productId || !locationSel) return;
+
+    tr.querySelector('.putaway-badge')?.remove();
+
+    const spinner = document.createElement('small');
+    spinner.className = 'text-body-secondary putaway-badge d-block mt-1';
+    spinner.innerHTML =
+        `<span class="spinner-border spinner-border-sm me-1" role="status"></span>Đang gợi ý vị trí…`;
+    locationSel.closest('td').appendChild(spinner);
+
+    fetch(`{{ route('receipts.suggest-putaway') }}?product_id=${productId}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            tr.querySelector('.putaway-badge')?.remove();
+            if (!data.location_id) return;
+
+            locationSel.value = data.location_id;
+
+            const badge = document.createElement('small');
+            badge.className = 'text-body-secondary putaway-badge d-block mt-1';
+            badge.innerHTML =
+                `<svg class="icon icon-sm me-1">` +
+                `<use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-location-pin') }}"></use>` +
+                `</svg>Gợi ý tự động`;
+            locationSel.closest('td').appendChild(badge);
+        })
+        .catch(() => {
+            tr.querySelector('.putaway-badge')?.remove();
+        });
 }
 
 // ── Khi thay đổi SL dự kiến trên sản phẩm Serial ─────────────────
