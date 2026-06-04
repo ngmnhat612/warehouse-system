@@ -18,73 +18,112 @@ class DashboardController extends Controller
         $pendingIssues   = DB::table('stock_issues')->where('status', 2)->count();
 
         // ── 2. HÀNG DƯỚI MỨC TỒN TỐI THIỂU ─────────────────────────────────
-        // SQL Server không cho alias của subquery trong HAVING.
-        // Dùng subquery trong SELECT, lọc bằng WHERE ở query ngoài (CTE pattern).
-        $lowStockItems = DB::table(DB::raw('(
-            SELECT
-                rr.id,
-                rr.min_qty,
-                p.code  AS product_code,
-                p.name  AS product_name,
-                u.name  AS uom_name,
-                l.code  AS location_code,
-                COALESCE(s.total_qty, 0) AS current_stock
-            FROM reorder_rules rr
-            INNER JOIN products  p ON p.id = rr.product_id
-            INNER JOIN uoms      u ON u.id = p.uom_id
-            INNER JOIN locations l ON l.id = rr.location_id
-            LEFT JOIN (
-                SELECT product_id, location_id, SUM(available_qty) AS total_qty
-                FROM stock
-                GROUP BY product_id, location_id
-            ) s ON s.product_id = rr.product_id AND s.location_id = rr.location_id
-            WHERE rr.status = 1
-        ) AS sub'))
-        ->whereRaw('current_stock < min_qty')
-        ->orderByRaw('(min_qty - current_stock) DESC')
-        ->limit(10)
-        ->get()
-        ->map(fn($r) => (object) [
-            'product_code'  => $r->product_code,
-            'product_name'  => $r->product_name,
-            'uom_name'      => $r->uom_name,
-            'location_code' => $r->location_code,
-            'current_stock' => (float) $r->current_stock,
-            'min_qty'       => (float) $r->min_qty,
-            'shortage'      => (float) $r->min_qty - (float) $r->current_stock,
-        ]);
+        //
+        // Ưu tiên reorder_rules (có location cụ thể, min/max rõ ràng).
+        // Nếu reorder_rules chưa có data → fallback về products.min_stock.
+        // Không dùng available_qty (computed PERSISTED) trong subquery aggregation
+        // vì SQL Server không resolve được — dùng (quantity - reserved_qty) thay thế.
+
+        $hasReorderRules = DB::table('reorder_rules')->where('status', 1)->exists();
+
+        if ($hasReorderRules) {
+            $lowStockItems = DB::table(DB::raw('(
+                SELECT
+                    rr.min_qty,
+                    p.code  AS product_code,
+                    p.name  AS product_name,
+                    u.name  AS uom_name,
+                    l.code  AS location_code,
+                    COALESCE(s.total_qty, 0) AS current_stock
+                FROM reorder_rules rr
+                INNER JOIN products  p ON p.id  = rr.product_id
+                INNER JOIN uoms      u ON u.id  = p.uom_id
+                INNER JOIN locations l ON l.id  = rr.location_id
+                LEFT JOIN (
+                    SELECT product_id, location_id,
+                           SUM(quantity - reserved_qty) AS total_qty
+                    FROM stock
+                    GROUP BY product_id, location_id
+                ) s ON s.product_id  = rr.product_id
+                   AND s.location_id = rr.location_id
+                WHERE rr.status = 1
+            ) AS sub'))
+            ->whereRaw('current_stock < min_qty')
+            ->orderByRaw('(min_qty - current_stock) DESC')
+            ->limit(10)
+            ->get()
+            ->map(fn($r) => (object) [
+                'product_code'  => $r->product_code,
+                'product_name'  => $r->product_name,
+                'uom_name'      => $r->uom_name,
+                'location_code' => $r->location_code,
+                'current_stock' => (float) $r->current_stock,
+                'min_qty'       => (float) $r->min_qty,
+                'shortage'      => (float) $r->min_qty - (float) $r->current_stock,
+            ]);
+        } else {
+            $lowStockItems = collect();
+        }
 
         // ── 3. LÔ HÀNG SẮP HẾT HẠN ──────────────────────────────────────────
-        // Cảnh báo lot active, còn hàng, expiry_date trong 30 ngày tới
+        //
+        // Đồng bộ với ReportAlertController::fetchNearExpiry:
+        // lấy cả từ lots (hàng tracking lot) lẫn stock.expiry_date (hàng thường).
+
         $today     = Carbon::today()->toDateString();
         $alertDate = Carbon::today()->addDays(30)->toDateString();
 
-        $expiringLots = DB::table('lots as lt')
+        // Nguồn 1: từ bảng lots
+        $fromLots = DB::table('lots as lt')
             ->join('products as p', 'lt.product_id', '=', 'p.id')
             ->join('uoms as u', 'p.uom_id', '=', 'u.id')
             ->leftJoin(
-                DB::raw('(SELECT lot_id, SUM(quantity) as lot_qty FROM stock WHERE lot_id IS NOT NULL GROUP BY lot_id) as s'),
+                DB::raw('(
+                    SELECT lot_id, SUM(quantity) AS lot_qty
+                    FROM stock
+                    WHERE lot_id IS NOT NULL
+                    GROUP BY lot_id
+                ) AS s'),
                 's.lot_id', '=', 'lt.id'
             )
             ->select(
-                'lt.id',
                 'lt.lot_number',
                 'lt.expiry_date',
-                'p.code as product_code',
                 'p.name as product_name',
                 'u.name as uom_name',
-                DB::raw('COALESCE(s.lot_qty, 0) as current_qty'),
-                // SQL Server: DATEDIFF(day, start, end)
-                DB::raw('DATEDIFF(day, CAST(GETDATE() AS DATE), lt.expiry_date) as days_remaining')
+                DB::raw('COALESCE(s.lot_qty, 0) AS current_qty'),
+                DB::raw('DATEDIFF(day, CAST(GETDATE() AS DATE), lt.expiry_date) AS days_remaining')
             )
             ->where('lt.status', 1)
             ->whereBetween('lt.expiry_date', [$today, $alertDate])
-            ->whereRaw('COALESCE(s.lot_qty, 0) > 0')
-            ->orderBy('lt.expiry_date')
+            ->whereRaw('COALESCE(s.lot_qty, 0) > 0');
+
+        // Nguồn 2: từ stock.expiry_date (hàng không theo lot)
+        $fromStock = DB::table('stock as s')
+            ->join('products as p', 'p.id', '=', 's.product_id')
+            ->join('uoms as u', 'u.id', '=', 'p.uom_id')
+            ->select(
+                DB::raw('NULL AS lot_number'),
+                's.expiry_date',
+                'p.name as product_name',
+                'u.name as uom_name',
+                DB::raw('SUM(s.quantity) AS current_qty'),
+                DB::raw('DATEDIFF(day, CAST(GETDATE() AS DATE), s.expiry_date) AS days_remaining')
+            )
+            ->whereNull('s.lot_id')
+            ->whereNotNull('s.expiry_date')
+            ->whereBetween('s.expiry_date', [$today, $alertDate])
+            ->where('s.quantity', '>', 0)
+            ->groupBy('p.name', 'u.name', 's.expiry_date');
+
+        $expiringLots = $fromLots
+            ->union($fromStock)
+            ->orderBy('days_remaining')
             ->limit(10)
             ->get();
 
         // ── 4. CHART — NHẬP/XUẤT 30 NGÀY ─────────────────────────────────────
+
         $start = Carbon::today()->subDays(29)->startOfDay();
         $end   = Carbon::today()->endOfDay();
 
@@ -111,6 +150,7 @@ class DashboardController extends Controller
         }
 
         // ── 5. 10 GIAO DỊCH MỚI NHẤT ─────────────────────────────────────────
+
         $recentTransactions = DB::table('stock_ledger as sl')
             ->join('products as p',    'sl.product_id',  '=', 'p.id')
             ->join('locations as l',   'sl.location_id', '=', 'l.id')
