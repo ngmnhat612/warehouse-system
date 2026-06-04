@@ -322,19 +322,6 @@
 
         <div class="row g-3 mb-3">
           <div class="col-6">
-            <label class="form-label">Tồn kho tối thiểu</label>
-            <input type="number" class="form-control" id="pMinStock" name="min_stock"
-                   step="0.001" min="0" value="0">
-          </div>
-          <div class="col-6">
-            <label class="form-label">Tồn kho tối đa</label>
-            <input type="number" class="form-control" id="pMaxStock" name="max_stock"
-                   step="0.001" min="0" placeholder="Không giới hạn">
-          </div>
-        </div>
-
-        <div class="row g-3 mb-3">
-          <div class="col-6">
             <label class="form-label">Kiểu theo dõi <span class="text-danger">*</span>
               <span class="ms-1" data-coreui-toggle="tooltip"
                     title="None: không track | Lot: theo lô | Serial: theo số serial | Expiry: theo hạn dùng">
@@ -369,6 +356,16 @@
           <input type="number" class="form-control" id="pAlertExpiry" name="alert_before_expiry"
                  min="0" placeholder="VD: 30">
           <div class="form-text">Cảnh báo khi hàng sắp hết hạn trong vòng N ngày</div>
+        </div>
+
+        <div class="alert alert-info py-2 px-3 small d-flex align-items-start gap-2">
+          <svg class="icon icon-sm flex-shrink-0 mt-1 text-info">
+            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}"></use>
+          </svg>
+          <div>
+            Ngưỡng tồn tối thiểu / tối đa được cấu hình theo từng <strong>vị trí kho</strong> tại
+            <a href="{{ route('master.reorder_rule.index') }}" target="_blank">Quy tắc tái đặt hàng</a>.
+          </div>
         </div>
 
         {{-- ===== THÔNG TIN THÊM ===== --}}
@@ -457,8 +454,6 @@
       barcode:             '{{ addslashes($p->barcode ?? '') }}',
       weight:              '{{ $p->weight ?? '' }}',
       volume:              '{{ $p->volume ?? '' }}',
-      min_stock:           '{{ $p->min_stock ?? 0 }}',
-      max_stock:           '{{ $p->max_stock ?? '' }}',
       tracking_type:       {{ $p->tracking_type ?? 1 }},
       stock_rotation:      {{ $p->stock_rotation ?? 1 }},
       alert_before_expiry: '{{ $p->alert_before_expiry ?? '' }}',
@@ -509,8 +504,6 @@
       barcodeInput.value           = p.barcode;
       document.getElementById('pWeight').value        = p.weight;
       document.getElementById('pVolume').value        = p.volume;
-      document.getElementById('pMinStock').value      = p.min_stock;
-      document.getElementById('pMaxStock').value      = p.max_stock;
       document.getElementById('pTracking').value      = p.tracking_type;
       document.getElementById('pRotation').value      = p.stock_rotation;
       document.getElementById('pAlertExpiry').value   = p.alert_before_expiry;
@@ -648,8 +641,6 @@
     document.getElementById('pBarcode').value     = @json(old('barcode', ''));
     document.getElementById('pWeight').value      = @json(old('weight', ''));
     document.getElementById('pVolume').value      = @json(old('volume', ''));
-    document.getElementById('pMinStock').value    = @json(old('min_stock', 0));
-    document.getElementById('pMaxStock').value    = @json(old('max_stock', ''));
     document.getElementById('pTracking').value    = @json(old('tracking_type', 1));
     document.getElementById('pRotation').value    = @json(old('stock_rotation', 1));
     document.getElementById('pAlertExpiry').value = @json(old('alert_before_expiry', ''));

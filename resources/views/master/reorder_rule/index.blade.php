@@ -20,6 +20,24 @@
     </button>
   </div>
 
+  {{-- Banner gợi ý tạo reorder rule cho sản phẩm mới --}}
+  @if (session('suggest_reorder_rule'))
+    <div class="alert alert-success alert-dismissible d-flex align-items-center gap-3 mb-4" role="alert">
+      <svg class="icon icon-xl flex-shrink-0 text-success">
+        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use>
+      </svg>
+      <div class="flex-grow-1">
+        <strong>Đã thêm "{{ session('new_product_name') }}" thành công!</strong><br>
+        <span class="small">Bước tiếp theo: tạo Reorder Rule để hệ thống cảnh báo khi tồn kho xuống thấp.</span>
+      </div>
+      <button type="button" class="btn btn-success btn-sm flex-shrink-0" onclick="openCreateWithProduct()">
+        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use></svg>
+        Tạo ngay
+      </button>
+      <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
+    </div>
+  @endif
+
   {{-- THỐNG KÊ --}}
   <div class="row g-3 mb-4">
     <div class="col-sm-6 col-lg-3">
@@ -364,6 +382,14 @@
     document.getElementById('deleteRuleName').textContent = name;
     document.getElementById('deleteForm').action = `{{ url('master/reorder_rule') }}/${id}`;
     new coreui.Modal(document.getElementById('deleteModal')).show();
+  }
+
+  function openCreateWithProduct() {
+    openCreate();
+    const newProductId = {{ request('new_product_id', 'null') }};
+    if (newProductId) {
+      document.getElementById('product_id').value = newProductId;
+    }
   }
 
   @if ($errors->any())

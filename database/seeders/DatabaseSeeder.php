@@ -44,7 +44,10 @@ class DatabaseSeeder extends Seeder
             StockSeeder::class,
 
             // 10. Giao dịch kho mẫu (phải sau có sản phẩm, vị trí, lot/serial) - UPDATE
-            StockTransactionSeeder::class
+            StockTransactionSeeder::class,
+
+            // 11. Reorder rule
+            ReorderRuleSeeder::class,
         ]);
     }
 }

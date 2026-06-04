@@ -313,6 +313,118 @@ class StockTransactionSeeder extends Seeder
                 ]);
             }
         }
+        
+        // ── 6. PHIẾU SCRAP MẪU ───────────────────────────────────────────────
+        $scraps = [
+            [
+                'code'       => 'SC-2026-0001',
+                'status'     => 2,   // Completed
+                'scrap_date' => $now->copy()->subDays(10)->toDateString(),
+                'note'       => 'Hủy hàng hỏng do vận chuyển',
+                'created_by' => $userId,
+                'approved_by'=> $userId,
+                'created_at' => $now->copy()->subDays(10),
+                'updated_at' => $now->copy()->subDays(10),
+                'product_id' => $prodNone->id,
+                'quantity'   => 15.000,
+                'reason'     => 'Hàng bị vỡ khi vận chuyển',
+            ],
+            [
+                'code'       => 'SC-2026-0002',
+                'status'     => 2,   // Completed
+                'scrap_date' => $now->copy()->subDays(5)->toDateString(),
+                'note'       => 'Hủy hàng hết hạn sử dụng',
+                'created_by' => $userId,
+                'approved_by'=> $userId,
+                'created_at' => $now->copy()->subDays(5),
+                'updated_at' => $now->copy()->subDays(5),
+                'product_id' => $prodLot->id,
+                'quantity'   => 30.000,
+                'reason'     => 'Hàng quá hạn sử dụng',
+            ],
+            [
+                'code'       => 'SC-2026-0003',
+                'status'     => 1,   // Draft
+                'scrap_date' => $now->toDateString(),
+                'note'       => 'Hủy hàng lỗi sản xuất',
+                'created_by' => $userId,
+                'approved_by'=> null,
+                'created_at' => $now,
+                'updated_at' => $now,
+                'product_id' => $prodSerial->id,
+                'quantity'   => 5.000,
+                'reason'     => 'Hàng lỗi kỹ thuật',
+            ],
+        ];
+
+        foreach ($scraps as $scrap) {
+            if (DB::table('scraps')->where('code', $scrap['code'])->exists()) {
+                continue;
+            }
+
+            $scrapId = DB::table('scraps')->insertGetId([
+                'code'        => $scrap['code'],
+                'status'      => $scrap['status'],
+                'scrap_date'  => $scrap['scrap_date'],
+                'note'        => $scrap['note'],
+                'created_by'  => $scrap['created_by'],
+                'approved_by' => $scrap['approved_by'],
+                'created_at'  => $scrap['created_at'],
+                'updated_at'  => $scrap['updated_at'],
+            ]);
+
+            DB::table('scrap_details')->insert([
+                'scrap_id'   => $scrapId,
+                'product_id' => $scrap['product_id'],
+                'lot_id'     => null,
+                'serial_id'  => null,
+                'location_id'=> $locWhShelfA1,
+                'uom_id'     => $uomId,
+                'quantity'   => $scrap['quantity'],
+                'reason'     => $scrap['reason'],
+            ]);
+
+            // Chỉ ghi ledger cho phiếu đã hoàn thành
+            if ($scrap['status'] === 2) {
+                $stockId = DB::table('stock')
+                    ->where('product_id', $scrap['product_id'])
+                    ->where('location_id', $locWhShelfA1)
+                    ->whereNull('lot_id')
+                    ->whereNull('serial_id')
+                    ->value('id');
+
+                if (!$stockId) {
+                    $stockId = DB::table('stock')->insertGetId([
+                        'product_id'   => $scrap['product_id'],
+                        'location_id'  => $locWhShelfA1,
+                        'lot_id'       => null,
+                        'serial_id'    => null,
+                        'quantity'     => 0,
+                        'reserved_qty' => 0,
+                        'status'       => 1,
+                        'updated_at'   => $scrap['created_at'],
+                    ]);
+                }
+
+                DB::table('stock_ledger')->insert([
+                    'product_id'       => $scrap['product_id'],
+                    'stock_id'         => $stockId,
+                    'lot_id'           => null,
+                    'serial_id'        => null,
+                    'location_id'      => $locWhShelfA1,
+                    'transaction_type' => 'SCRAP',
+                    'reference_id'     => $scrapId,
+                    'reference_type'   => 'scrap',
+                    'reference_code'   => $scrap['code'],
+                    'direction'        => 2,
+                    'quantity'         => $scrap['quantity'],
+                    'balance_after'    => 0,
+                    'created_by'       => $userId,
+                    'note'             => $scrap['note'],
+                    'transaction_date' => $scrap['created_at'],
+                ]);
+            }
+        }
     }
 
     // ── HELPER: insert hoặc lấy id nếu đã tồn tại ────────────────────────────

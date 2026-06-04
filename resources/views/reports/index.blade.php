@@ -339,30 +339,51 @@
               <thead class="table-light sticky-top">
                 <tr>
                   <th>Mặt hàng</th>
-                  <th class="text-end">Tồn</th>
-                  <th class="text-end">Min</th>
-                  <th class="text-end">Thiếu</th>
+                  <th style="width:70px" class="text-center">Vị trí</th>
+                  <th class="text-end" style="width:70px">Tồn KD</th>
+                  <th class="text-end" style="width:55px">Min</th>
+                  <th class="text-end" style="width:65px">Thiếu</th>
+                  <th class="text-center" style="width:75px">Mức độ</th>
                 </tr>
               </thead>
               <tbody>
                 @forelse ($lowStockItems ?? [] as $item)
+                  @php
+                    $pct      = $item->min_stock > 0 ? ($item->current_qty / $item->min_stock * 100) : 0;
+                    $severity = $item->current_qty <= 0 ? 'danger'
+                              : ($pct <= 50 ? 'warning' : 'info');
+                    $label    = $item->current_qty <= 0 ? 'Hết hàng'
+                              : ($pct <= 50 ? 'Nguy hiểm' : 'Chú ý');
+                  @endphp
                   <tr>
                     <td>
                       <div class="fw-medium small">{{ $item->name }}</div>
                       <div class="text-body-secondary" style="font-size:11px">{{ $item->code }}</div>
                     </td>
-                    <td class="text-end fw-semibold text-danger">{{ number_format($item->current_qty, 0) }}</td>
-                    <td class="text-end text-body-secondary">{{ number_format($item->min_stock, 0) }}</td>
+                    <td class="text-center">
+                      <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size:10px">
+                        {{ $item->location_code ?? '—' }}
+                      </span>
+                    </td>
+                    <td class="text-end fw-semibold text-danger small">{{ number_format($item->current_qty, 0) }}</td>
+                    <td class="text-end text-body-secondary small">{{ number_format($item->min_stock, 0) }}</td>
                     <td class="text-end">
-                      <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
-                        -{{ number_format($item->min_stock - $item->current_qty, 0) }}
+                      <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:10px">
+                        -{{ number_format($item->shortage_qty, 0) }}
+                      </span>
+                    </td>
+                    <td class="text-center">
+                      <span class="badge bg-{{ $severity }}-subtle text-{{ $severity }} border border-{{ $severity }}-subtle" style="font-size:10px">
+                        {{ $label }}
                       </span>
                     </td>
                   </tr>
                 @empty
                   <tr>
-                    <td colspan="4" class="text-center text-body-secondary py-4">
-                      <svg class="icon text-success"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use></svg>
+                    <td colspan="6" class="text-center text-body-secondary py-4">
+                      <svg class="icon text-success">
+                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use>
+                      </svg>
                       Không có hàng nào dưới ngưỡng
                     </td>
                   </tr>
@@ -370,6 +391,11 @@
               </tbody>
             </table>
           </div>
+        </div>
+        <div class="card-footer py-2 text-end">
+          <a href="{{ route('reports.alerts.below_min') }}" class="btn btn-sm btn-outline-danger">
+            Xem đầy đủ →
+          </a>
         </div>
       </div>
     </div>
@@ -390,36 +416,81 @@
               <thead class="table-light sticky-top">
                 <tr>
                   <th>Mặt hàng / Lot</th>
-                  <th class="text-end">Số lượng</th>
-                  <th class="text-center">Hết hạn</th>
-                  <th class="text-center">Còn lại</th>
+                  <th style="width:70px" class="text-center">Vị trí</th>
+                  <th class="text-end" style="width:80px">Số lượng</th>
+                  <th class="text-center" style="width:90px">Hết hạn</th>
+                  <th class="text-center" style="width:95px">Còn lại</th>
+                  <th class="text-center" style="width:80px">Mức độ</th>
                 </tr>
               </thead>
               <tbody>
                 @forelse ($expiringSoonItems ?? [] as $item)
                   @php
-                    $daysLeft = now()->diffInDays(\Carbon\Carbon::parse($item->expiry_date), false);
-                    $badgeColor = $daysLeft <= 7 ? 'danger' : ($daysLeft <= 14 ? 'warning' : 'info');
+                    $daysLeft = (int) now()->diffInDays(\Carbon\Carbon::parse($item->expiry_date), false);
+
+                    if ($daysLeft < 0) {
+                        $severity  = 'dark';
+                        $label     = 'Đã hết hạn';
+                        $rowClass  = 'table-secondary opacity-75';
+                        $remaining = 'Quá ' . abs($daysLeft) . ' ngày';
+                        $remColor  = 'text-secondary';
+                    } elseif ($daysLeft <= 7) {
+                        $severity  = 'danger';
+                        $label     = 'Khẩn cấp';
+                        $rowClass  = 'table-danger bg-opacity-25';
+                        $remaining = $daysLeft . ' ngày';
+                        $remColor  = 'text-danger fw-bold';
+                    } elseif ($daysLeft <= 14) {
+                        $severity  = 'warning';
+                        $label     = 'Gấp';
+                        $rowClass  = '';
+                        $remaining = $daysLeft . ' ngày';
+                        $remColor  = 'text-warning fw-bold';
+                    } else {
+                        $severity  = 'info';
+                        $label     = 'Chú ý';
+                        $rowClass  = '';
+                        $remaining = $daysLeft . ' ngày';
+                        $remColor  = 'text-info';
+                    }
                   @endphp
-                  <tr>
+                  <tr class="{{ $rowClass }}">
                     <td>
                       <div class="fw-medium small">{{ $item->product_name }}</div>
-                      <div class="text-body-secondary" style="font-size:11px">
-                        Lot: {{ $item->lot_number }}
-                      </div>
+                      @if (!empty($item->lot_number))
+                        <div style="font-size:11px">
+                          <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                            {{ $item->lot_number }}
+                          </span>
+                        </div>
+                      @endif
                     </td>
-                    <td class="text-end">{{ number_format($item->quantity, 0) }}</td>
-                    <td class="text-center small">{{ \Carbon\Carbon::parse($item->expiry_date)->format('d/m/Y') }}</td>
                     <td class="text-center">
-                      <span class="badge bg-{{ $badgeColor }}-subtle text-{{ $badgeColor }} border border-{{ $badgeColor }}-subtle">
-                        {{ $daysLeft }} ngày
+                      @if (!empty($item->location_code))
+                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size:11px">
+                          {{ $item->location_code }}
+                        </span>
+                      @else
+                        <span class="text-body-secondary small">—</span>
+                      @endif
+                    </td>
+                    <td class="text-end fw-semibold">{{ number_format($item->quantity, 0) }}</td>
+                    <td class="text-center small">
+                      {{ \Carbon\Carbon::parse($item->expiry_date)->format('d/m/Y') }}
+                    </td>
+                    <td class="text-center small {{ $remColor }}">{{ $remaining }}</td>
+                    <td class="text-center">
+                      <span class="badge bg-{{ $severity }}-subtle text-{{ $severity }} border border-{{ $severity }}-subtle" style="font-size:11px">
+                        {{ $label }}
                       </span>
                     </td>
                   </tr>
                 @empty
                   <tr>
-                    <td colspan="4" class="text-center text-body-secondary py-4">
-                      <svg class="icon text-success"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use></svg>
+                    <td colspan="6" class="text-center text-body-secondary py-4">
+                      <svg class="icon text-success">
+                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use>
+                      </svg>
                       Không có hàng sắp hết hạn
                     </td>
                   </tr>
@@ -428,6 +499,14 @@
             </table>
           </div>
         </div>
+
+        {{-- Link xem đầy đủ --}}
+        <div class="card-footer py-2 text-end">
+          <a href="{{ route('reports.alerts.near_expiry') }}" class="btn btn-sm btn-outline-warning">
+            Xem đầy đủ →
+          </a>
+        </div>
+
       </div>
     </div>
 
