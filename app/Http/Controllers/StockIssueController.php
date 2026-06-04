@@ -159,9 +159,12 @@ class StockIssueController extends Controller
     // ──────────────────────────────────────────────────────────────────────────
     public function stockLocations(int $productId)
     {
-        $stocks = Stock::with(['location', 'lot'])
+        $stocks = Stock::with(['location', 'lot', 'serial'])
             ->where('product_id', $productId)
-            ->where('available_qty', '>', 0)
+            ->where(function ($q) {
+                $q->where('available_qty', '>', 0)
+                  ->orWhereRaw('(quantity - reserved_qty) > 0');
+            })
             ->get()
             ->map(fn($s) => [
                 'location_id'   => $s->location_id,
@@ -169,7 +172,9 @@ class StockIssueController extends Controller
                 'location_name' => $s->location?->name ?? '',
                 'lot_id'        => $s->lot_id,
                 'lot_number'    => $s->lot?->lot_number,
-                'expiry_date'   => $s->lot?->expiry_date,
+                'expiry_date'   => $s->lot?->expiry_date?->format('Y-m-d'),
+                'serial_id'     => $s->serial_id,
+                'serial_number' => $s->serial?->serial_number,
                 'available_qty' => (float) $s->available_qty,
             ]);
 
@@ -493,7 +498,7 @@ class StockIssueController extends Controller
                 'product_id'     => $row['product_id'],
                 'uom_id'         => $row['uom_id'],
                 'lot_id'         => $row['lot_id'] ?: null,
-                'serial_id'      => null,
+                'serial_id'      => $row['serial_id'] ?: null,
                 'location_id'    => $row['location_id'],
                 'quantity'       => $row['quantity'],
                 'note'           => $row['note'] ?: null,
