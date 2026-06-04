@@ -109,6 +109,15 @@ $typeLabels = [1 => 'Từ nhà cung cấp', 2 => 'Trả hàng SX', 3 => 'Khác']
         </form>
         @endif
 
+        @if((int) $receipt->status === 4)
+        <a href="{{ route('receipts.print', $receipt) }}" target="_blank" class="btn btn-outline-primary">
+            <svg class="icon me-1">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
+            </svg>
+            Xuất PDF
+        </a>
+        @endif
+
         <a href="{{ route('receipts.index') }}" class="btn btn-outline-secondary">
             <svg class="icon me-1">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-left') }}"></use>

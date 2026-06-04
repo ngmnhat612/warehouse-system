@@ -368,6 +368,23 @@ class StockReceiptController extends Controller
             ->with('success', "Đã hủy phiếu {$receipt->code}.");
     }
 
+     // ──────────────────────────────────────────────────────────────────────────
+    // XUẤT PDF
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function printPdf(StockReceipt $receipt)
+    {
+        $receipt->load([
+            'supplier', 'createdBy', 'confirmedBy',
+            'details.product.uom',
+            'details.location',
+            'details.lot',
+            'details.uom',
+        ]);
+
+        return view('receipts.print', compact('receipt'));
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // AJAX: Gợi ý vị trí lưu kho (Putaway)
     // ──────────────────────────────────────────────────────────────────────────
