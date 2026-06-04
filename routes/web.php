@@ -196,6 +196,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('transfers/{transfer}/confirm', [StockTransferController::class, 'confirm'])->name('transfers.confirm');
     Route::post('transfers/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('transfers.cancel');
 
+    Route::resource('scraps', ScrapController::class);
+    Route::post('scraps/{scrap}/submit',  [ScrapController::class, 'submit'])->name('scraps.submit');
+    Route::post('scraps/{scrap}/approve', [ScrapController::class, 'approve'])->name('scraps.approve');
+    Route::post('scraps/{scrap}/cancel',  [ScrapController::class, 'cancel'])->name('scraps.cancel');
+
     // ── KIỂM KÊ ───────────────────────────────────────────────────────
     Route::resource('stocktakes', InventoryCheckController::class);
     Route::post('stocktakes/{stocktake}/activate',  [InventoryCheckController::class, 'activate'])->name('stocktakes.activate');
