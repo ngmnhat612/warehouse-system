@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Spatie\Permission\Models\Role;
+use Illuminate\Support\Facades\Gate;
 
 class EmployeeController extends Controller
 {
@@ -51,6 +52,8 @@ class EmployeeController extends Controller
      */
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $rules = [
             'code'      => 'required|string|max:20|unique:employees,code',
             'full_name' => 'required|string|max:100',
@@ -112,6 +115,8 @@ class EmployeeController extends Controller
 
     public function update(Request $request, Employee $employee)
     {
+        Gate::authorize('master.edit');
+
         $request->validate([
             'code'      => "required|string|max:20|unique:employees,code,{$employee->id}",
             'full_name' => 'required|string|max:100',
@@ -132,6 +137,8 @@ class EmployeeController extends Controller
 
     public function destroy(Employee $employee)
     {
+        Gate::authorize('master.delete');
+
         if ($employee->hasAccount()) {
             return redirect()->route('master.employee.index')
                 ->with('error', "Không thể xóa \"{$employee->full_name}\" vì đang có tài khoản đăng nhập. Hãy xóa tài khoản trước.");
@@ -149,6 +156,8 @@ class EmployeeController extends Controller
      */
     public function createAccount(Request $request, Employee $employee)
     {
+        Gate::authorize('master.edit');
+
         if ($employee->hasAccount()) {
             return redirect()->route('master.employee.index')
                 ->with('error', 'Nhân viên này đã có tài khoản.');
@@ -187,6 +196,8 @@ class EmployeeController extends Controller
      */
     public function updateAccount(Request $request, Employee $employee)
     {
+        Gate::authorize('master.edit');
+
         if (!$employee->hasAccount()) {
             return redirect()->route('master.employee.index')
                 ->with('error', 'Nhân viên này chưa có tài khoản.');
@@ -219,6 +230,8 @@ class EmployeeController extends Controller
      */
     public function deleteAccount(Employee $employee)
     {
+        Gate::authorize('master.delete');
+
         if (!$employee->hasAccount()) {
             return redirect()->route('master.employee.index')
                 ->with('error', 'Nhân viên này chưa có tài khoản.');
@@ -239,6 +252,8 @@ class EmployeeController extends Controller
      */
     public function activateUser(Request $request, User $user)
     {
+        Gate::authorize('master.edit');
+
         $request->validate([
             'role' => 'required|exists:roles,name',
         ], [
@@ -259,6 +274,8 @@ class EmployeeController extends Controller
      */
     public function rejectUser(User $user)
     {
+        Gate::authorize('master.delete');
+
         $email = $user->email;
         $user->delete();
 

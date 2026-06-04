@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\Location;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class LocationController extends Controller
 {
@@ -87,6 +88,8 @@ class LocationController extends Controller
     // ─────────────────────────────────────────────────────────────────────
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $request->validate([
             'code'           => 'required|string|max:50|unique:locations,code',
             'name'           => 'required|string|max:100',
@@ -121,6 +124,8 @@ class LocationController extends Controller
     // ─────────────────────────────────────────────────────────────────────
     public function update(Request $request, Location $location)
     {
+        Gate::authorize('master.edit');
+
         $request->validate([
             'code'           => "required|string|max:50|unique:locations,code,{$location->id}",
             'name'           => 'required|string|max:100',
@@ -158,6 +163,8 @@ class LocationController extends Controller
     // ─────────────────────────────────────────────────────────────────────
     public function destroy(Location $location)
     {
+        Gate::authorize('master.delete');
+        
         if ($location->hasChildren()) {
             return redirect()->route('master.location.index')
                 ->with('error', "Không thể xóa \"{$location->name}\" vì có vị trí con.");

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class CategoryController extends Controller
 {
@@ -68,6 +69,8 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $request->validate([
             'code'        => 'required|string|max:50|unique:categories,code',
             'name'        => 'required|string|max:200',
@@ -100,6 +103,8 @@ class CategoryController extends Controller
      */
     public function update(Request $request, Category $category)
     {
+        Gate::authorize('master.edit');
+
         $request->validate([
             'code'        => "required|string|max:50|unique:categories,code,{$category->id}",
             'name'        => 'required|string|max:200',
@@ -138,6 +143,8 @@ class CategoryController extends Controller
      */
     public function destroy(Category $category)
     {
+        Gate::authorize('master.delete');
+
         if ($category->hasChildren()) {
             return redirect()->route('master.category.index')
                 ->with('error', "Không thể xóa \"{$category->name}\" vì có danh mục con.");
