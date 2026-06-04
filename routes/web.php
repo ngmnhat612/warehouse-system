@@ -231,6 +231,7 @@ Route::middleware('auth')->group(function () {
     Route::get('transfers/{transfer}/print', [StockTransferController::class, 'printPdf'])->name('transfers.print');
     Route::get('scraps/{scrap}/print',       [ScrapController::class,       'printPdf'])->name('scraps.print');
     Route::get('receipts/{receipt}/print',   [StockReceiptController::class, 'printPdf'])->name('receipts.print');
+    Route::get('issues/{issue}/print', [StockIssueController::class, 'printPdf'])->name('issues.print');
 });
 
 require __DIR__.'/auth.php';

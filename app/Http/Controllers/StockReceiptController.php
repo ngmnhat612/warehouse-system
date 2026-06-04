@@ -124,6 +124,7 @@ class StockReceiptController extends Controller
             'details.product.uom',
             'details.location',
             'details.lot',
+            'details.serial',
             'details.uom',
         ]);
 
@@ -141,7 +142,7 @@ class StockReceiptController extends Controller
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Draft.');
         }
 
-        $receipt->load(['details.product', 'details.location', 'details.lot', 'details.uom']);
+        $receipt->load(['details.product', 'details.location', 'details.lot', 'details.serial', 'details.uom']);
 
         $products      = Product::with('uom')->where('status', 1)->orderBy('code')->get();
         $productsJson  = $products->map(fn($p) => [
@@ -450,7 +451,7 @@ class StockReceiptController extends Controller
             $lotSerial  = trim($row['lot_number'] ?? '');
 
             // tracking_type = 2 → tạo/tìm Lot
-            if ($lotSerial && $product?->tracking_type === Product::TRACKING_LOT) {
+            if ($lotSerial && in_array($product?->tracking_type, [Product::TRACKING_LOT, Product::TRACKING_LOT_AND_SERIAL])) {
                 $lot = Lot::firstOrCreate(
                     ['product_id' => $row['product_id'], 'lot_number' => $lotSerial],
                     [
@@ -464,7 +465,7 @@ class StockReceiptController extends Controller
             }
 
             // tracking_type = 3 → tạo/tìm Serial (mỗi dòng = 1 serial độc nhất)
-            if ($lotSerial && $product?->tracking_type === Product::TRACKING_SERIAL) {
+            if ($lotSerial && in_array($product?->tracking_type, [Product::TRACKING_SERIAL, Product::TRACKING_LOT_AND_SERIAL])) {
                 $serial = Serial::firstOrCreate(
                     ['product_id' => $row['product_id'], 'serial_number' => $lotSerial],
                     ['status' => 1, 'received_date' => $receipt->receipt_date]

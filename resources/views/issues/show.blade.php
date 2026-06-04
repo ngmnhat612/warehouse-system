@@ -93,6 +93,16 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
         </button>
         @endif
 
+        {{-- COMPLETED: In phiếu xuất kho --}}
+        @if($issueStatus === 4)
+        <a href="{{ route('issues.print', $issue) }}" target="_blank" class="btn btn-outline-primary">
+            <svg class="icon me-1">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
+            </svg>
+            Xuất PDF
+        </a>
+        @endif
+
         {{-- HỦY: hiện khi chưa Hoàn thành / Đã hủy --}}
         @if(!in_array($issueStatus, [4, 5]))
         @php $cancelExtra = ($issueStatus === 3) ? '\nHàng đang giữ sẽ được giải phóng.' : ''; @endphp

@@ -451,6 +451,26 @@ class StockIssueController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // IN PHIẾU XUẤT KHO (PDF / Print)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function printPdf(StockIssue $issue)
+    {
+        $issue->load([
+            'details.product.uom',
+            'details.uom',
+            'details.location',
+            'details.lot',
+            'details.serial',
+            'createdBy',
+            'confirmedBy',
+            'requester',
+        ]);
+
+        return view('issues.print', compact('issue'));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ──────────────────────────────────────────────────────────────────────────
 

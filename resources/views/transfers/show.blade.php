@@ -102,7 +102,7 @@ $transferStatus = (int) $transfer->status;
             <svg class="icon me-1">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
             </svg>
-            In phiếu
+            Xuất PDF
         </a>
         @endif
 
