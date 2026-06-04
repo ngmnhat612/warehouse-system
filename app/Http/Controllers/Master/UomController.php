@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Master;
 use App\Http\Controllers\Controller;
 use App\Models\Uom;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class UomController extends Controller
 {
@@ -37,6 +38,8 @@ class UomController extends Controller
      */
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $request->validate([
             'name'   => 'required|string|max:50|unique:uoms,name',
             'status' => 'required|in:0,1',
@@ -61,6 +64,8 @@ class UomController extends Controller
      */
     public function update(Request $request, Uom $uom)
     {
+        Gate::authorize('master.edit');
+
         $request->validate([
             'name'   => "required|string|max:50|unique:uoms,name,{$uom->id}",
             'status' => 'required|in:0,1',
@@ -84,6 +89,8 @@ class UomController extends Controller
      */
     public function destroy(Uom $uom)
     {
+        Gate::authorize('master.delete');
+
         // Kiểm tra xem đơn vị tính có đang được dùng không
         if ($uom->products()->exists()) {
             return redirect()->route('uom.index')

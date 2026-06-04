@@ -220,8 +220,13 @@
               </svg>
             </div>
             <div class="flex-grow-1">
-              <input type="file" class="form-control form-control-sm" id="pImage" name="image"
-                     accept="image/jpeg,image/png,image/webp" onchange="previewImage(this)">
+              <input type="file" class="form-control form-control-sm {{ $errors->has('image') ? 'is-invalid' : '' }}"
+                    id="pImage" name="image"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onchange="previewImage(this)">
+              @error('image')
+                <div class="invalid-feedback">{{ $message }}</div>
+              @enderror
               <div class="form-text">JPEG, PNG, WebP — tối đa 2 MB</div>
               {{-- Nút xóa ảnh (chỉ hiện khi edit và đang có ảnh) --}}
               <div id="removeImageWrap" class="d-none mt-1">
@@ -466,30 +471,42 @@
 
   // ===== MỞ FORM =====
   function openForm(id = null) {
-    const offcanvas = new coreui.OffCanvas(document.getElementById('productOffcanvas'));
-    const form      = document.getElementById('productForm');
-    const title     = document.getElementById('productOffcanvasTitle');
-    const method    = document.getElementById('formMethod');
+    const offcanvasEl = document.getElementById('productOffcanvas');
+    const offcanvas   = new coreui.OffCanvas(offcanvasEl);
+    const form        = document.getElementById('productForm');
+    const title       = document.getElementById('productOffcanvasTitle');
+    const method      = document.getElementById('formMethod');
+    const codeInput    = document.getElementById('pCode');
+    const barcodeInput = document.getElementById('pBarcode');
+    const genBtn       = document.getElementById('genBarcodeBtn');
 
-    // Reset form & preview
     form.reset();
     document.getElementById('pStatusActive').checked = true;
     resetImagePreview();
     document.getElementById('removeImageWrap').classList.add('d-none');
     document.getElementById('alertExpiryGroup').style.display = 'none';
+    offcanvasEl.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    offcanvasEl.querySelectorAll('.invalid-feedback, .alert').forEach(el => el.remove());
+
+    // Mặc định unlock
+    codeInput.removeAttribute('readonly');
+    codeInput.classList.remove('bg-body-secondary');
+    barcodeInput.removeAttribute('readonly');
+    barcodeInput.classList.remove('bg-body-secondary');
+    genBtn.disabled = false;
 
     if (id && productsMap[id]) {
       const p = productsMap[id];
-      title.textContent  = 'Chỉnh sửa hàng hóa';
-      form.action        = `${routeBase}/${id}`;
-      method.value       = 'PUT';
+      title.textContent            = 'Chỉnh sửa hàng hóa';
+      form.action                  = `${routeBase}/${id}`;
+      method.value                 = 'PUT';
 
-      document.getElementById('pCode').value          = p.code;
+      codeInput.value              = p.code;
       document.getElementById('pName').value          = p.name;
       document.getElementById('pCategory').value      = p.category_id ?? '';
       document.getElementById('pUom').value           = p.uom_id ?? '';
       document.getElementById('pUomPurchase').value   = p.uom_purchase_id ?? '';
-      document.getElementById('pBarcode').value       = p.barcode;
+      barcodeInput.value           = p.barcode;
       document.getElementById('pWeight').value        = p.weight;
       document.getElementById('pVolume').value        = p.volume;
       document.getElementById('pMinStock').value      = p.min_stock;
@@ -500,14 +517,19 @@
       document.getElementById('pDesc').value          = p.description;
       document.getElementById(p.status == 1 ? 'pStatusActive' : 'pStatusInactive').checked = true;
 
-      // Hiện ảnh cũ
       if (p.image_url) {
         showImagePreview(p.image_url);
         document.getElementById('removeImageWrap').classList.remove('d-none');
       }
-
-      // Hiện/ẩn alert expiry
       onTrackingChange(p.tracking_type);
+
+      // Lock mã và barcode khi edit
+      codeInput.setAttribute('readonly', true);
+      codeInput.classList.add('bg-body-secondary');
+      barcodeInput.setAttribute('readonly', true);
+      barcodeInput.classList.add('bg-body-secondary');
+      genBtn.disabled = true;
+
     } else {
       title.textContent = 'Thêm hàng hóa';
       form.action       = routeStore;
@@ -515,7 +537,7 @@
     }
 
     offcanvas.show();
-    setTimeout(() => document.getElementById('pCode').focus(), 400);
+    setTimeout(() => document.getElementById('pName').focus(), 400);
   }
 
   // ===== BARCODE =====
@@ -597,6 +619,61 @@
     const pos = this.selectionStart;
     this.value = this.value.toUpperCase();
     this.setSelectionRange(pos, pos);
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    const pfa = (document.body.dataset.pfa || '').trim();
+    if (!pfa) return;
+
+    // Có lỗi validation từ server — mở lại offcanvas với old input
+    // Inject error alert vào đầu form
+    const alertHtml = `
+      <div class="alert alert-danger alert-dismissible mb-3" role="alert">
+        <strong>Vui lòng kiểm tra lại:</strong>
+        <ul class="mb-0 mt-1 ps-3">
+          @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+          @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
+      </div>`;
+    document.getElementById('productForm').insertAdjacentHTML('afterbegin', alertHtml);
+
+    // Fill old input trực tiếp (chạy 1 lần duy nhất lúc load)
+    document.getElementById('pCode').value        = @json(old('code', ''));
+    document.getElementById('pName').value        = @json(old('name', ''));
+    document.getElementById('pCategory').value    = @json(old('category_id', ''));
+    document.getElementById('pUom').value         = @json(old('uom_id', ''));
+    document.getElementById('pUomPurchase').value = @json(old('uom_purchase_id', ''));
+    document.getElementById('pBarcode').value     = @json(old('barcode', ''));
+    document.getElementById('pWeight').value      = @json(old('weight', ''));
+    document.getElementById('pVolume').value      = @json(old('volume', ''));
+    document.getElementById('pMinStock').value    = @json(old('min_stock', 0));
+    document.getElementById('pMaxStock').value    = @json(old('max_stock', ''));
+    document.getElementById('pTracking').value    = @json(old('tracking_type', 1));
+    document.getElementById('pRotation').value    = @json(old('stock_rotation', 1));
+    document.getElementById('pAlertExpiry').value = @json(old('alert_before_expiry', ''));
+    document.getElementById('pDesc').value        = @json(old('description', ''));
+
+    const oldStatus = @json(old('status', '1'));
+    document.getElementById(oldStatus == '1' ? 'pStatusActive' : 'pStatusInactive').checked = true;
+    onTrackingChange(@json(old('tracking_type', 1)));
+
+    if (pfa.startsWith('update:')) {
+      const id = pfa.split(':')[1];
+      document.getElementById('productOffcanvasTitle').textContent = 'Chỉnh sửa hàng hóa';
+      document.getElementById('productForm').action = `${routeBase}/${id}`;
+      document.getElementById('formMethod').value = 'PUT';
+    } else {
+      document.getElementById('productOffcanvasTitle').textContent = 'Thêm hàng hóa';
+      document.getElementById('productForm').action = routeStore;
+      document.getElementById('formMethod').value = 'POST';
+    }
+
+    // Xóa flag khỏi DOM ngay lập tức
+    document.body.dataset.pfa = '';
+
+    new coreui.OffCanvas(document.getElementById('productOffcanvas')).show();
   });
 </script>
 @endpush

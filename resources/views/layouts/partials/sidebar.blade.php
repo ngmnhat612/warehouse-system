@@ -232,6 +232,7 @@
     <li class="nav-divider"></li>
     <li class="nav-title">Hệ thống</li>
 
+    @can('master.edit')
     <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('users.*') ? 'active' : '' }}"
          href="{{ route('master.employee.index') }}">
@@ -241,6 +242,7 @@
         Quản lý người dùng
       </a>
     </li>
+    @endcan
 
     <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('activity-log.*') ? 'active' : '' }}"

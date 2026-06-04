@@ -8,6 +8,7 @@ use App\Models\Location;
 use App\Models\Product;
 use App\Models\PutawayRule;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class PutawayRuleController extends Controller
 {
@@ -57,6 +58,8 @@ class PutawayRuleController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $this->validateRule($request);
 
         PutawayRule::create([
@@ -74,6 +77,8 @@ class PutawayRuleController extends Controller
 
     public function update(Request $request, PutawayRule $putaway_rule)
     {
+        Gate::authorize('master.edit');
+
         $this->validateRule($request);
 
         $putaway_rule->update([
@@ -91,6 +96,8 @@ class PutawayRuleController extends Controller
 
     public function destroy(PutawayRule $putaway_rule)
     {
+        Gate::authorize('master.delete');
+        
         $putaway_rule->delete();
 
         return redirect()->route('master.putaway_rule.index')

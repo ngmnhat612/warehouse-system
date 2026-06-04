@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Uom;
 use App\Models\UomConversion;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class UomConversionController extends Controller
 {
@@ -34,6 +35,8 @@ class UomConversionController extends Controller
 
     public function store(Request $request)
     {
+        Gate::authorize('master.create');
+
         $request->validate([
             'from_uom_id' => 'required|exists:uoms,id',
             'to_uom_id'   => [
@@ -68,6 +71,8 @@ class UomConversionController extends Controller
 
     public function update(Request $request, UomConversion $uom_conversion)
     {
+        Gate::authorize('master.edit');
+
         $request->validate([
             'from_uom_id' => 'required|exists:uoms,id',
             'to_uom_id'   => [
@@ -102,6 +107,8 @@ class UomConversionController extends Controller
 
     public function destroy(UomConversion $uom_conversion)
     {
+        Gate::authorize('master.delete');
+        
         $uom_conversion->delete();
 
         return redirect()->route('master.uom_conversion.index')
