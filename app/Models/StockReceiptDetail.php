@@ -10,7 +10,9 @@ class StockReceiptDetail extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'stock_receipt_id', 'product_id', 'lot_id', 'serial_id', 'location_id', 'uom_id',
+        'stock_receipt_id', 'product_id', 'lot_id', 'serial_id',
+        'serial_number',
+        'location_id', 'uom_id',
         'expected_qty', 'actual_qty', 'rejected_qty', 'reject_reason',
         'qc_status', 'supplier_id', 'manufacture_date', 'expiry_date', 'note',
     ];
