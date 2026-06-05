@@ -238,8 +238,7 @@ function onProductChange(sel) {
     const uomSel = row.querySelector('.uom-select');
     const lotSel = row.querySelector('.lot-select');
     if (!uomSel || !lotSel) return;
-    uomSel.innerHTML = p ? `<option value="${p.uom_id}">${p.uom?.name ?? p.uom_id}</option>` :
-        '<option value="">—</option>';
+    uomSel.innerHTML = p ? `<option value="${p.uom_id}">${p.uom ?? p.uom_id}</option>` : '<option value="">—</option>';
     const lots = lotsMap[sel.value] ?? [];
     lotSel.innerHTML = '<option value="">— Không —</option>' +
         lots.map(l =>

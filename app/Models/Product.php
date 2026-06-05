@@ -18,10 +18,12 @@ class Product extends Model
     ];
 
     protected $casts = [
-        'weight'    => 'decimal:3',
-        'volume'    => 'decimal:3',
-        'min_stock' => 'decimal:3',
-        'max_stock' => 'decimal:3',
+        'weight'        => 'decimal:3',
+        'volume'        => 'decimal:3',
+        'min_stock'     => 'decimal:3',
+        'max_stock'     => 'decimal:3',
+        'tracking_type' => 'integer',
+        'stock_rotation'=> 'integer',
     ];
 
     // ===== CONSTANTS =====

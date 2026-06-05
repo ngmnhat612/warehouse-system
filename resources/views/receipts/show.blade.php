@@ -96,6 +96,15 @@ $hasLot = $receipt->details->contains(fn($d) =>
         </form>
         @endif
 
+        @if((int) $receipt->status === 4)
+        <a href="{{ route('receipts.print', $receipt) }}" target="_blank" class="btn btn-outline-primary">
+            <svg class="icon me-1">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
+            </svg>
+            Xuất PDF
+        </a>
+        @endif
+
         <a href="{{ route('receipts.index') }}" class="btn btn-outline-secondary btn-sm">
             <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-left') }}"></use></svg>Quay lại
         </a>

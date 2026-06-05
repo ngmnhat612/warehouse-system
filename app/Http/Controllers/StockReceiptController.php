@@ -123,6 +123,7 @@ class StockReceiptController extends Controller
             'details.product.uom',
             'details.location',
             'details.lot',
+            'details.serial',
             'details.uom',
         ]);
 
@@ -140,7 +141,7 @@ class StockReceiptController extends Controller
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Draft.');
         }
 
-        $receipt->load(['details.product', 'details.location', 'details.lot', 'details.uom']);
+        $receipt->load(['details.product', 'details.location', 'details.lot', 'details.serial', 'details.uom']);
 
         $products      = Product::with('uom')->where('status', 1)->orderBy('code')->get();
         $productsJson  = $products->map(fn($p) => [
@@ -379,6 +380,23 @@ class StockReceiptController extends Controller
 
         return redirect()->route('receipts.show', $receipt)
             ->with('success', "Đã hủy phiếu {$receipt->code}.");
+    }
+
+     // ──────────────────────────────────────────────────────────────────────────
+    // XUẤT PDF
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function printPdf(StockReceipt $receipt)
+    {
+        $receipt->load([
+            'supplier', 'createdBy', 'confirmedBy',
+            'details.product.uom',
+            'details.location',
+            'details.lot',
+            'details.uom',
+        ]);
+
+        return view('receipts.print', compact('receipt'));
     }
 
     // ──────────────────────────────────────────────────────────────────────────

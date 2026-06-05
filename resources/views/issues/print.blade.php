@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Phiếu Chuyển Kho {{ $transfer->code }}</title>
+    <title>Phiếu Xuất Kho — {{ $issue->code }}</title>
     <style>
     * {
         margin: 0;
@@ -143,6 +143,11 @@
         color: #92400e;
     }
 
+    .badge-approved {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
     .badge-completed {
         background: #dcfce7;
         color: #15803d;
@@ -216,72 +221,85 @@
 
 <body>
 
+    @php
+    $fmt = fn($n) => rtrim(rtrim(number_format((float)$n, 3, '.', ','), '0'), '.');
+    $typeLabels = [1 => 'Xuất sản xuất', 2 => 'Xuất bảo trì', 3 => 'Mượn hàng', 4 => 'Xuất khác'];
+    $statusMap = [
+    \App\Models\StockIssue::STATUS_DRAFT => ['Nháp', 'badge-draft'],
+    \App\Models\StockIssue::STATUS_PENDING => ['Chờ duyệt', 'badge-pending'],
+    \App\Models\StockIssue::STATUS_APPROVED => ['Đã duyệt', 'badge-approved'],
+    \App\Models\StockIssue::STATUS_COMPLETED => ['Hoàn thành', 'badge-completed'],
+    \App\Models\StockIssue::STATUS_CANCELLED => ['Đã hủy', 'badge-cancelled'],
+    ];
+    [$statusLabel, $statusClass] = $statusMap[$issue->status] ?? ['—', 'badge-draft'];
+    @endphp
+
     {{-- NÚT IN (ẩn khi in) --}}
     <div class="no-print" style="margin-bottom:16px; text-align:right">
         <button onclick="window.print()"
             style="background:#2563eb;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:11px;cursor:pointer">
-            🖨 Xuất PDF
+            🖨 In phiếu
         </button>
-        <a href="{{ route('transfers.show', $transfer) }}" style="margin-left:8px;background:#f1f5f9;color:#334155;border:none;border-radius:4px;
-              padding:6px 14px;font-size:11px;cursor:pointer;text-decoration:none">
+        <a href="{{ route('issues.show', $issue) }}"
+            style="margin-left:8px;background:#f1f5f9;color:#334155;border:none;border-radius:4px;padding:6px 14px;font-size:11px;cursor:pointer;text-decoration:none">
             ← Quay lại
         </a>
     </div>
 
     {{-- TIÊU ĐỀ --}}
     <div class="page-header">
-        <h1>PHIẾU CHUYỂN KHO</h1>
-        <p>
-            Số phiếu: <strong>{{ $transfer->code }}</strong>
-            &nbsp;|&nbsp;
-            Ngày chuyển: <strong>{{ \Carbon\Carbon::parse($transfer->transfer_date)->format('d/m/Y') }}</strong>
-            &nbsp;|&nbsp;
-            In lúc: {{ now()->format('H:i d/m/Y') }}
-        </p>
+        <h1>PHIẾU XUẤT KHO</h1>
+        <p>Ment Automation — {{ $issue->code }}</p>
     </div>
 
     {{-- THÔNG TIN PHIẾU --}}
     <div class="info-grid">
         <div class="info-box">
-            <div class="lbl">Loại chuyển kho</div>
-            <div class="val">
-                @php
-                $typeLabels = [1 => 'Chuyển nội bộ', 2 => 'Chuyển bộ phận', 3 => 'Điều chuyển kho'];
-                @endphp
-                {{ $typeLabels[$transfer->transfer_type] ?? '—' }}
-            </div>
+            <div class="lbl">Mã phiếu</div>
+            <div class="val">{{ $issue->code }}</div>
+        </div>
+        <div class="info-box">
+            <div class="lbl">Loại xuất</div>
+            <div class="val">{{ $typeLabels[$issue->issue_type] ?? '—' }}</div>
         </div>
         <div class="info-box">
             <div class="lbl">Trạng thái</div>
-            <div class="val">
-                @php
-                $statusMap = [
-                \App\Models\StockTransfer::STATUS_DRAFT => ['Nháp', 'badge-draft'],
-                \App\Models\StockTransfer::STATUS_PENDING => ['Chờ duyệt', 'badge-pending'],
-                \App\Models\StockTransfer::STATUS_COMPLETED => ['Hoàn thành', 'badge-completed'],
-                \App\Models\StockTransfer::STATUS_CANCELLED => ['Đã hủy', 'badge-cancelled'],
-                ];
-                [$statusLabel, $statusClass] = $statusMap[$transfer->status] ?? ['—', 'badge-draft'];
-                @endphp
-                <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
-            </div>
+            <div class="val"><span class="badge {{ $statusClass }}">{{ $statusLabel }}</span></div>
+        </div>
+        <div class="info-box">
+            <div class="lbl">Ngày xuất</div>
+            <div class="val">{{ $issue->issue_date?->format('d/m/Y') ?? '—' }}</div>
+        </div>
+        <div class="info-box">
+            <div class="lbl">Số tham chiếu</div>
+            <div class="val">{{ $issue->reference_no ?? '—' }}</div>
+        </div>
+        <div class="info-box">
+            <div class="lbl">Người yêu cầu</div>
+            <div class="val">{{ $issue->requester?->name ?? '—' }}</div>
         </div>
         <div class="info-box">
             <div class="lbl">Người tạo</div>
-            <div class="val">{{ $transfer->createdBy?->name ?? '—' }}</div>
+            <div class="val">{{ $issue->createdBy?->name ?? '—' }}</div>
         </div>
         <div class="info-box">
-            <div class="lbl">Người xác nhận</div>
-            <div class="val">{{ $transfer->confirmedBy?->name ?? '—' }}</div>
+            <div class="lbl">Người duyệt</div>
+            <div class="val">{{ $issue->confirmedBy?->name ?? '—' }}</div>
         </div>
     </div>
 
-    @if($transfer->note)
-    <div class="note-box"><strong>Ghi chú:</strong> {{ $transfer->note }}</div>
+    @if($issue->expected_return_date)
+    <div class="note-box">
+        <strong>Ngày hoàn trả dự kiến:</strong> {{ $issue->expected_return_date->format('d/m/Y') }}
+    </div>
+    @endif
+
+    @if($issue->note)
+    <div class="note-box"><strong>Ghi chú:</strong> {{ $issue->note }}</div>
     @endif
 
     {{-- BẢNG CHI TIẾT --}}
-    <div class="section-title">Chi tiết hàng hóa chuyển kho</div>
+    <div class="section-title">Chi tiết hàng hóa xuất kho</div>
     <table>
         <thead>
             <tr>
@@ -290,36 +308,34 @@
                 <th>Tên hàng hóa</th>
                 <th style="width:36px" class="c">ĐVT</th>
                 <th class="r" style="width:60px">Số lượng</th>
-                <th style="width:80px">Vị trí nguồn</th>
-                <th style="width:80px">Vị trí đích</th>
-                <th style="width:80px">Lot</th>
+                <th style="width:80px">Vị trí kho</th>
+                <th style="width:80px">Lot / Batch</th>
                 <th>Ghi chú</th>
             </tr>
         </thead>
         <tbody>
-            @forelse ($transfer->details as $i => $row)
+            @forelse ($issue->details as $i => $row)
             <tr>
                 <td class="c">{{ $i + 1 }}</td>
                 <td>{{ $row->product?->code ?? '—' }}</td>
                 <td>{{ $row->product?->name ?? '—' }}</td>
                 <td class="c">{{ $row->uom?->name ?? $row->product?->uom?->name ?? '—' }}</td>
-                <td class="r" style="font-weight:bold">{{ number_format($row->quantity, 3) }}</td>
-                <td>{{ $row->fromLocation?->code ?? '—' }}</td>
-                <td>{{ $row->toLocation?->code ?? '—' }}</td>
+                <td class="r" style="font-weight:bold">{{ $fmt($row->quantity) }}</td>
+                <td>{{ $row->location?->code ?? '—' }}</td>
                 <td>{{ $row->lot?->lot_number ?? '—' }}</td>
                 <td style="color:#64748b">{{ $row->note ?? '' }}</td>
             </tr>
             @empty
             <tr>
-                <td colspan="9" style="text-align:center;padding:10px;color:#94a3b8">Không có dữ liệu</td>
+                <td colspan="8" style="text-align:center;padding:10px;color:#94a3b8">Không có dữ liệu</td>
             </tr>
             @endforelse
         </tbody>
         <tfoot>
             <tr>
                 <td colspan="4" style="text-align:right">Tổng số lượng:</td>
-                <td class="r">{{ number_format($transfer->details->sum('quantity'), 3) }}</td>
-                <td colspan="4"></td>
+                <td class="r">{{ $fmt($issue->details->sum('quantity')) }}</td>
+                <td colspan="3"></td>
             </tr>
         </tfoot>
     </table>
@@ -328,24 +344,24 @@
     <div class="sign-row">
         <div class="sign-col">
             <div class="sign-title">Người lập phiếu</div>
-            <div class="sign-name">{{ $transfer->createdBy?->name ?? '' }}</div>
+            <div class="sign-name">{{ $issue->createdBy?->name ?? '' }}</div>
         </div>
         <div class="sign-col">
-            <div class="sign-title">Thủ kho xuất</div>
+            <div class="sign-title">Người duyệt</div>
+            <div class="sign-name">{{ $issue->confirmedBy?->name ?? '' }}</div>
+        </div>
+        <div class="sign-col">
+            <div class="sign-title">Thủ kho</div>
             <div class="sign-name">&nbsp;</div>
         </div>
         <div class="sign-col">
-            <div class="sign-title">Thủ kho nhận</div>
-            <div class="sign-name">&nbsp;</div>
-        </div>
-        <div class="sign-col">
-            <div class="sign-title">Người xác nhận</div>
-            <div class="sign-name">{{ $transfer->confirmedBy?->name ?? '' }}</div>
+            <div class="sign-title">Người nhận hàng</div>
+            <div class="sign-name">{{ $issue->requester?->name ?? '' }}</div>
         </div>
     </div>
 
     <div class="footer">
-        Warehouse System — Phiếu chuyển kho {{ $transfer->code }} — In lúc {{ now()->format('H:i:s d/m/Y') }}
+        Warehouse System — Phiếu xuất kho {{ $issue->code }} — In lúc {{ now()->format('H:i:s d/m/Y') }}
     </div>
 
 </body>

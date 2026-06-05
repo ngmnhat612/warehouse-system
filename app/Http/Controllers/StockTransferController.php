@@ -104,6 +104,8 @@ class StockTransferController extends Controller
     {
         $this->validateTransfer($request);
 
+        $warnings = $this->checkStockSufficiencyFromRequest($request->input('details', []));
+
         DB::transaction(function () use ($request) {
             $code = $request->code
                 ? strtoupper(trim($request->code))
@@ -122,10 +124,17 @@ class StockTransferController extends Controller
         });
 
         $action = $request->input('action');
+        $route  = $action === 'save_and_new'
+            ? redirect()->route('transfers.create')
+            : redirect()->route('transfers.index');
 
-        return $action === 'save_and_new'
-            ? redirect()->route('transfers.create')->with('success', 'Đã tạo phiếu chuyển kho thành công.')
-            : redirect()->route('transfers.index')->with('success', 'Đã tạo phiếu chuyển kho thành công.');
+        if (!empty($warnings)) {
+            $route->with('warning', 'Phiếu đã được tạo nhưng một số mặt hàng không đủ tồn kho tại vị trí nguồn: ' . implode('; ', $warnings));
+        } else {
+            $route->with('success', 'Đã tạo phiếu chuyển kho thành công.');
+        }
+
+        return $route;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -222,6 +231,8 @@ class StockTransferController extends Controller
 
         $this->validateTransfer($request, isUpdate: true);
 
+        $warnings = $this->checkStockSufficiencyFromRequest($request->input('details', []));
+
         DB::transaction(function () use ($request, $transfer) {
             $transfer->update([
                 'transfer_type' => $request->transfer_type,
@@ -233,8 +244,13 @@ class StockTransferController extends Controller
             $this->saveDetails($transfer, $request->details ?? []);
         });
 
-        return redirect()->route('transfers.show', $transfer)
-            ->with('success', "Đã cập nhật phiếu {$transfer->code} thành công.");
+        $redirect = redirect()->route('transfers.show', $transfer);
+
+        if (!empty($warnings)) {
+            return $redirect->with('warning', 'Phiếu đã được cập nhật nhưng một số mặt hàng không đủ tồn kho tại vị trí nguồn: ' . implode('; ', $warnings));
+        }
+
+        return $redirect->with('success', "Đã cập nhật phiếu {$transfer->code} thành công.");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -488,6 +504,50 @@ class StockTransferController extends Controller
         }
 
         return $errors;
+    }
+
+    /**
+     * Kiểm tra tồn kho từ raw request details (dùng cho store/update — phiếu chưa lưu).
+     * Trả về mảng warning string, không throw exception.
+     */
+    private function checkStockSufficiencyFromRequest(array $details): array
+    {
+        $warnings = [];
+
+        // Gom nhóm SL theo (product_id, from_location_id, lot_id)
+        $needed = [];
+        foreach ($details as $row) {
+            if (empty($row['product_id']) || empty($row['quantity']) || empty($row['from_location_id'])) {
+                continue;
+            }
+            $key = $row['product_id'] . '|' . $row['from_location_id'] . '|' . ($row['lot_id'] ?? '');
+            $needed[$key] = ($needed[$key] ?? 0) + (float) $row['quantity'];
+        }
+
+        foreach ($needed as $key => $qty) {
+            [$productId, $locationId, $lotId] = explode('|', $key);
+            $lotId = $lotId !== '' ? (int) $lotId : null;
+
+            $available = $this->stockService->getAvailableQty(
+                (int) $productId,
+                (int) $locationId,
+                $lotId
+            );
+
+            if ($available < $qty) {
+                $product  = Product::find($productId);
+                $location = Location::find($locationId);
+                $warnings[] = sprintf(
+                    '%s tại %s: cần %.3f, khả dụng %.3f',
+                    $product?->name ?? "ID {$productId}",
+                    $location?->code ?? "Loc {$locationId}",
+                    $qty,
+                    $available
+                );
+            }
+        }
+
+        return $warnings;
     }
 
     /**
