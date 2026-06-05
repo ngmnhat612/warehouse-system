@@ -35,6 +35,7 @@ return new class extends Migration
             $table->unsignedBigInteger('stock_receipt_id');
             $table->unsignedBigInteger('product_id');
             $table->unsignedBigInteger('lot_id')->nullable();
+            $table->string('serial_number', 100)->nullable();
             $table->unsignedBigInteger('serial_id')->nullable();
             $table->unsignedBigInteger('location_id')->nullable();
             $table->unsignedBigInteger('uom_id');

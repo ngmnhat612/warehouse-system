@@ -54,20 +54,25 @@
               Cài đặt
             </a>
           </li>
-          <li><hr class="dropdown-divider"></li>
           <li>
-            <form method="POST" action="{{ route('logout') }}">
-              @csrf
-              <button type="submit" class="dropdown-item text-danger">
-                <svg class="icon me-2">
-                  <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-account-logout') }}"></use>
-                </svg>
-                Đăng xuất
+              <hr class="dropdown-divider">
+          </li>
+          <li>
+              <button type="submit" form="logoutForm" class="dropdown-item text-danger">
+                  <svg class="icon me-2">
+                      <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-account-logout') }}"></use>
+                  </svg>
+                  Đăng xuất
               </button>
-            </form>
           </li>
         </ul>
       </li>
     </ul>
   </div>
 </header>
+</header>
+
+{{-- Form logout — đặt ngoài header để tránh lồng form --}}
+<form id="logoutForm" method="POST" action="{{ route('logout') }}" class="d-none">
+    @csrf
+</form>

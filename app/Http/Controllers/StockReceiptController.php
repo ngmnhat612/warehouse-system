@@ -82,7 +82,6 @@ class StockReceiptController extends Controller
     // ──────────────────────────────────────────────────────────────────────────
     // LƯU PHIẾU MỚI (→ DRAFT)
     // ──────────────────────────────────────────────────────────────────────────
-
     public function store(Request $request)
     {
         $this->validateReceipt($request);
@@ -99,7 +98,7 @@ class StockReceiptController extends Controller
                 'supplier_id'  => $request->supplier_id ?: null,
                 'reference_no' => $request->reference_no ?: null,
                 'receipt_date' => $request->receipt_date,
-                'status'       => 1, // DRAFT
+                'status'       => 1,
                 'note'         => $request->note ?: null,
                 'created_by'   => Auth::id(),
             ]);
@@ -290,8 +289,10 @@ class StockReceiptController extends Controller
                     $lotId    = null;
                     $serialId = null;
                     $product  = $detail->product;
+                    $tracking = (int) ($product?->tracking_type ?? Product::TRACKING_NONE);
 
-                    if ($product?->tracking_type === Product::TRACKING_LOT || $product?->tracking_type === Product::TRACKING_LOT_AND_SERIAL) {
+                    // Tạo/tìm Lot cho type 2 và 4
+                    if (in_array($tracking, [Product::TRACKING_LOT, Product::TRACKING_LOT_AND_SERIAL])) {
                         if ($detail->lot_id) {
                             $lotId = $detail->lot_id;
                         } elseif ($detail->lot_number ?? null) {
@@ -308,9 +309,21 @@ class StockReceiptController extends Controller
                         }
                     }
 
-                    if ($product?->tracking_type === Product::TRACKING_SERIAL || $product?->tracking_type === Product::TRACKING_LOT_AND_SERIAL) {
+                    // Tạo/tìm Serial cho type 3 và 4
+                    if (in_array($tracking, [Product::TRACKING_SERIAL, Product::TRACKING_LOT_AND_SERIAL])) {
                         if ($detail->serial_id) {
                             $serialId = $detail->serial_id;
+                        } elseif ($detail->serial_number ?? null) {
+                            $serial = Serial::firstOrCreate(
+                                ['product_id' => $detail->product_id, 'serial_number' => $detail->serial_number],
+                                [
+                                    'lot_id'        => $lotId,
+                                    'supplier_id'   => $receipt->supplier_id,
+                                    'received_date' => $receipt->receipt_date,
+                                    'status'        => Serial::STATUS_INSTOCK,
+                                ]
+                            );
+                            $serialId = $serial->id;
                         }
                     }
 
@@ -424,6 +437,7 @@ class StockReceiptController extends Controller
             'details.*.location_id'          => 'nullable|exists:locations,id',
             'details.*.lot_number'           => 'nullable|string|max:50',
             'details.*.expiry_date'          => 'nullable|date',
+            'details.*.serial_number'        => 'nullable|string|max:100',
         ], [
             'code.unique'                    => 'Mã phiếu đã tồn tại.',
             'receipt_type.required'          => 'Vui lòng chọn loại nhập.',
@@ -445,15 +459,23 @@ class StockReceiptController extends Controller
         foreach ($details as $row) {
             if (empty($row['product_id']) || empty($row['expected_qty'])) continue;
 
-            $product    = Product::find($row['product_id']);
-            $lotId      = null;
-            $serialId   = null;
-            $lotSerial  = trim($row['lot_number'] ?? '');
+            $product     = Product::find($row['product_id']);
+            $tracking    = (int) ($product?->tracking_type ?? Product::TRACKING_NONE);
+            $lotId       = null;
+            $serialId    = null;
+            $lotValue    = trim($row['lot_number'] ?? '');
+            // tracking=3: field chung là lot_number; tracking=4: có serial_number riêng
+            $serialValue = $tracking === Product::TRACKING_SERIAL
+                ? $lotValue
+                : trim($row['serial_number'] ?? '');
 
-            // tracking_type = 2 → tạo/tìm Lot
-            if ($lotSerial && in_array($product?->tracking_type, [Product::TRACKING_LOT, Product::TRACKING_LOT_AND_SERIAL])) {
+            // ── Tạo/tìm Lot (tracking 2 và 4) ────────────────────────────────
+            if ($lotValue && in_array($tracking, [
+                Product::TRACKING_LOT,
+                Product::TRACKING_LOT_AND_SERIAL,
+            ])) {
                 $lot = Lot::firstOrCreate(
-                    ['product_id' => $row['product_id'], 'lot_number' => $lotSerial],
+                    ['product_id' => $row['product_id'], 'lot_number' => $lotValue],
                     [
                         'supplier_id'   => $receipt->supplier_id,
                         'received_date' => $receipt->receipt_date,
@@ -464,16 +486,25 @@ class StockReceiptController extends Controller
                 $lotId = $lot->id;
             }
 
-            // tracking_type = 3 → tạo/tìm Serial (mỗi dòng = 1 serial độc nhất)
-            if ($lotSerial && in_array($product?->tracking_type, [Product::TRACKING_SERIAL, Product::TRACKING_LOT_AND_SERIAL])) {
+            // ── Tạo/tìm Serial (tracking 3 và 4) ─────────────────────────────
+            if ($serialValue && in_array($tracking, [
+                Product::TRACKING_SERIAL,
+                Product::TRACKING_LOT_AND_SERIAL,
+            ])) {
                 $serial = Serial::firstOrCreate(
-                    ['product_id' => $row['product_id'], 'serial_number' => $lotSerial],
-                    ['status' => 1, 'received_date' => $receipt->receipt_date]
+                    ['product_id' => $row['product_id'], 'serial_number' => $serialValue],
+                    [
+                        'lot_id'        => $lotId,
+                        'supplier_id'   => $receipt->supplier_id,
+                        'received_date' => $receipt->receipt_date,
+                        'expiry_date'   => $row['expiry_date'] ?? null,
+                        'status'        => Serial::STATUS_INSTOCK,
+                    ]
                 );
                 $serialId = $serial->id;
             }
 
-            // Gợi ý vị trí putaway nếu user chưa chọn
+            // ── Putaway ───────────────────────────────────────────────────────
             $locationId = $row['location_id'] ?: null;
             if (!$locationId && $product) {
                 $locationId = $this->stockService->suggestPutawayLocation(
@@ -488,6 +519,7 @@ class StockReceiptController extends Controller
                 'uom_id'           => $row['uom_id'],
                 'lot_id'           => $lotId,
                 'serial_id'        => $serialId,
+                'serial_number'    => $serialValue ?: null,
                 'location_id'      => $locationId,
                 'expected_qty'     => $row['expected_qty'],
                 'actual_qty'       => $row['actual_qty'] ?: null,
@@ -525,17 +557,30 @@ class StockReceiptController extends Controller
 
             $product  = Product::find($row['product_id']);
             $tracking = (int) ($product?->tracking_type ?? Product::TRACKING_NONE);
-            $value    = trim($row['lot_number'] ?? '');
             $line     = $i + 1;
 
-            if ($tracking === Product::TRACKING_LOT && $value === '') {
+            $lotValue    = trim($row['lot_number'] ?? '');
+            $serialValue = trim($row['serial_number'] ?? $row['lot_number'] ?? ''); // ← fallback
+
+            if ($tracking === Product::TRACKING_LOT && $lotValue === '') {
                 $errors["details.{$i}.lot_number"] =
                     "Dòng {$line}: Hàng quản lý theo Lô — vui lòng nhập Số Lot/Batch.";
             }
 
-            if ($tracking === Product::TRACKING_SERIAL && $value === '') {
-                $errors["details.{$i}.lot_number"] =
+            if ($tracking === Product::TRACKING_SERIAL && $serialValue === '') {
+                $errors["details.{$i}.lot_number"] = // ← trỏ về lot_number để hiện lỗi đúng ô
                     "Dòng {$line}: Hàng quản lý theo Serial — vui lòng nhập Mã Serial.";
+            }
+
+            if ($tracking === Product::TRACKING_LOT_AND_SERIAL) {
+                if ($lotValue === '') {
+                    $errors["details.{$i}.lot_number"] =
+                        "Dòng {$line}: Hàng quản lý theo Lô+Serial — vui lòng nhập Số Lot.";
+                }
+                if (trim($row['serial_number'] ?? '') === '') {
+                    $errors["details.{$i}.serial_number"] =
+                        "Dòng {$line}: Hàng quản lý theo Lô+Serial — vui lòng nhập Mã Serial.";
+                }
             }
         }
 
