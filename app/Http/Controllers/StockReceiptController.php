@@ -464,10 +464,7 @@ class StockReceiptController extends Controller
             $lotId       = null;
             $serialId    = null;
             $lotValue    = trim($row['lot_number'] ?? '');
-            // tracking=3: field chung là lot_number; tracking=4: có serial_number riêng
-            $serialValue = $tracking === Product::TRACKING_SERIAL
-                ? $lotValue
-                : trim($row['serial_number'] ?? '');
+            $serialValue = trim($row['serial_number'] ?? '');
 
             // ── Tạo/tìm Lot (tracking 2 và 4) ────────────────────────────────
             if ($lotValue && in_array($tracking, [
@@ -560,7 +557,7 @@ class StockReceiptController extends Controller
             $line     = $i + 1;
 
             $lotValue    = trim($row['lot_number'] ?? '');
-            $serialValue = trim($row['serial_number'] ?? $row['lot_number'] ?? ''); // ← fallback
+           $serialValue = trim($row['serial_number'] ?? '');
 
             if ($tracking === Product::TRACKING_LOT && $lotValue === '') {
                 $errors["details.{$i}.lot_number"] =

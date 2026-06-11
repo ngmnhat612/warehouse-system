@@ -314,7 +314,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
             <svg class="icon me-1">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
             </svg>
-            Lưu & tạo phiếu mới
+            Lưu & Tạo phiếu mới
         </button>
         @endif
         <button type="submit" class="btn btn-primary" name="action" value="save">
@@ -386,27 +386,31 @@ function applyTracking(tr, tracking) {
             break;
 
         case TRACKING_SERIAL:
-            // Khóa lot, mở serial; actual_qty luôn = 1
+            // Khóa lot, mở serial; actual_qty mặc định = 1, cho phép sửa
             lotInput.readOnly = true;
             lotInput.value = '';
             lotInput.placeholder = '—';
             lotInput.classList.add('bg-body-secondary');
             serialInput.placeholder = 'Mã serial';
-            if (actualInput) {
+            if (actualInput && !actualInput.value) {
                 actualInput.value = 1;
-                actualInput.readOnly = true;
-                actualInput.classList.add('bg-body-secondary');
+            }
+            if (actualInput) {
+                actualInput.readOnly = false;
+                actualInput.classList.remove('bg-body-secondary');
             }
             break;
 
         case TRACKING_LOT_AND_SERIAL:
-            // Mở cả 2; actual_qty = 1
+            // Mở cả 2; actual_qty mặc định = 1, cho phép sửa
             lotInput.placeholder = 'Số lot';
             serialInput.placeholder = 'Mã serial';
-            if (actualInput) {
+            if (actualInput && !actualInput.value) {
                 actualInput.value = 1;
-                actualInput.readOnly = true;
-                actualInput.classList.add('bg-body-secondary');
+            }
+            if (actualInput) {
+                actualInput.readOnly = false;
+                actualInput.classList.remove('bg-body-secondary');
             }
             break;
     }
