@@ -121,7 +121,7 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                     <div class="mb-3">
                         <label class="form-label">Trạng thái</label>
                         <select class="form-select" name="status">
-                            <option value="1" {{ ($issue->status ?? 1) == 1 ? 'selected' : '' }}>Draft</option>
+                            <option value="1" {{ ($issue->status ?? 1) == 1 ? 'selected' : '' }}>Nháp</option>
                             <option value="2" {{ ($issue->status ?? 1) == 2 ? 'selected' : '' }}>Chờ duyệt</option>
                             <option value="3" {{ ($issue->status ?? 1) == 3 ? 'selected' : '' }}>Đã duyệt</option>
                             <option value="4" {{ ($issue->status ?? 1) == 4 ? 'selected' : '' }}>Hoàn thành</option>
@@ -249,6 +249,8 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                                             @endforeach
                                             @endif
                                         </select>
+                                        <input type="hidden" name="details[{{ $i }}][serial_id]"
+                                            value="{{ $detail->serial_id ?? '' }}">
                                     </td>
                                     <td class="text-end small stock-display text-body-secondary">
                                         {{ number_format($detail->product?->total_stock ?? 0, 0) }}

@@ -602,6 +602,8 @@ document.getElementById('receiptType').addEventListener('change', function() {
 // ── Client-side validate Lot/Serial ───────────────────────────────
 function validateLotSerial() {
     const errors = [];
+
+    // ── Bước 1: validate từng dòng bắt buộc nhập lot/serial ──────────
     document.querySelectorAll('#detailBody tr').forEach((tr, i) => {
         const sel = tr.querySelector('.product-select');
         const opt = sel?.options[sel.selectedIndex];
@@ -627,6 +629,28 @@ function validateLotSerial() {
             }
         }
     });
+
+    // ── Bước 2: kiểm tra serial trùng trong cùng phiếu (theo product_id) ──
+    const serialMap = {}; // { product_id: { serial_value: rowIndex } }
+    document.querySelectorAll('#detailBody tr').forEach((tr, i) => {
+        const sel = tr.querySelector('.product-select');
+        const productId = sel?.value;
+        const serialInput = tr.querySelector('.serial-input');
+        const serialVal = serialInput?.value.trim();
+        if (!productId || !serialVal) return;
+
+        if (!serialMap[productId]) serialMap[productId] = {};
+        if (serialMap[productId][serialVal] !== undefined) {
+            serialInput.classList.add('is-invalid');
+            const firstRow = serialMap[productId][serialVal] + 1;
+            errors.push(
+                `Dòng ${i+1}: Số Serial <strong>"${serialVal}"</strong> đã nhập ở dòng ${firstRow} (cùng sản phẩm).`
+            );
+        } else {
+            serialMap[productId][serialVal] = i;
+        }
+    });
+
     return errors;
 }
 
@@ -636,9 +660,19 @@ document.getElementById('receiptForm').addEventListener('submit', function(e) {
 
     e.preventDefault();
     const container = document.getElementById('lotSerialAlertContainer');
+    const hasSerialDup = errors.some(msg => msg.includes('đã nhập ở dòng'));
+    const hasLotSerial = errors.some(msg => !msg.includes('đã nhập ở dòng'));
+    let message = '';
+    if (hasSerialDup && !hasLotSerial) {
+        message = 'Số Serial bị trùng trong phiếu.';
+    } else if (hasSerialDup && hasLotSerial) {
+        message = 'Chưa nhập đủ thông tin Lot / Serial và có Số Serial bị trùng.';
+    } else {
+        message = 'Chưa nhập đủ thông tin Lot / Serial.';
+    }
     container.innerHTML = `
         <div class="alert alert-danger alert-dismissible mx-3 mt-3 mb-0" role="alert">
-            <strong>Chưa nhập đủ thông tin Lot / Serial.</strong>
+            <strong>${message}</strong>
             <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
         </div>`;
     container.scrollIntoView({
