@@ -638,8 +638,7 @@ document.getElementById('receiptForm').addEventListener('submit', function(e) {
     const container = document.getElementById('lotSerialAlertContainer');
     container.innerHTML = `
         <div class="alert alert-danger alert-dismissible mx-3 mt-3 mb-0" role="alert">
-            <strong>Chưa nhập đủ thông tin Lot / Serial:</strong>
-            <ul class="mb-0 mt-1 ps-4">${errors.map(m => `<li>${m}</li>`).join('')}</ul>
+            <strong>Chưa nhập đủ thông tin Lot / Serial.</strong>
             <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
         </div>`;
     container.scrollIntoView({
