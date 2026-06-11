@@ -19,10 +19,13 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h4 class="mb-0 fw-semibold">{{ $isEdit ? 'Sửa phiếu nhập' : 'Tạo phiếu nhập mới' }}</h4>
-        <small class="text-body-secondary">{{ $isEdit ? $receipt->code : 'Điền thông tin và thêm hàng hóa cần nhập' }}</small>
+        <small
+            class="text-body-secondary">{{ $isEdit ? $receipt->code : 'Điền thông tin và thêm hàng hóa cần nhập' }}</small>
     </div>
     <a href="{{ route('receipts.index') }}" class="btn btn-outline-secondary btn-sm">
-        <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-left') }}"></use></svg>
+        <svg class="icon me-1">
+            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-left') }}"></use>
+        </svg>
         Quay lại
     </a>
 </div>
@@ -34,7 +37,9 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
     {{-- ── THÔNG TIN PHIẾU (1 hàng ngang) ── --}}
     <div class="card mb-3">
         <div class="card-header fw-semibold py-2">
-            <svg class="icon me-1 text-primary"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-description') }}"></use></svg>
+            <svg class="icon me-1 text-primary">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-description') }}"></use>
+            </svg>
             Thông tin phiếu
         </div>
         <div class="card-body py-3">
@@ -42,10 +47,10 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
 
                 <div class="col-md-2">
                     <label class="form-label form-label-sm mb-1">Mã phiếu</label>
-                    <input type="text" class="form-control form-control-sm text-uppercase @error('code') is-invalid @enderror"
-                        name="code" value="{{ old('code', $receipt->code ?? '') }}"
-                        placeholder="Tự sinh nếu trống" maxlength="50"
-                        {{ $isEdit ? 'readonly' : '' }}>
+                    <input type="text"
+                        class="form-control form-control-sm text-uppercase @error('code') is-invalid @enderror"
+                        name="code" value="{{ old('code', $receipt->code ?? '') }}" placeholder="Tự sinh nếu trống"
+                        maxlength="50" {{ $isEdit ? 'readonly' : '' }}>
                     @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
@@ -53,16 +58,20 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                     <label class="form-label form-label-sm mb-1">Loại nhập <span class="text-danger">*</span></label>
                     <select class="form-select form-select-sm @error('receipt_type') is-invalid @enderror"
                         name="receipt_type" id="receiptType" required>
-                        <option value="1" {{ old('receipt_type', $receipt->receipt_type ?? 1) == 1 ? 'selected' : '' }}>Từ nhà cung cấp</option>
-                        <option value="2" {{ old('receipt_type', $receipt->receipt_type ?? 1) == 2 ? 'selected' : '' }}>Trả hàng SX / BT</option>
-                        <option value="3" {{ old('receipt_type', $receipt->receipt_type ?? 1) == 3 ? 'selected' : '' }}>Khác</option>
+                        <option value="1" {{ old('receipt_type', $receipt->receipt_type ?? 1) == 1 ? 'selected' : '' }}>
+                            Từ nhà cung cấp</option>
+                        <option value="2" {{ old('receipt_type', $receipt->receipt_type ?? 1) == 2 ? 'selected' : '' }}>
+                            Trả hàng SX / BT</option>
+                        <option value="3" {{ old('receipt_type', $receipt->receipt_type ?? 1) == 3 ? 'selected' : '' }}>
+                            Khác</option>
                     </select>
                     @error('receipt_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
                 <div class="col-md-2" id="supplierGroup">
                     <label class="form-label form-label-sm mb-1">Nhà cung cấp</label>
-                    <select class="form-select form-select-sm @error('supplier_id') is-invalid @enderror" name="supplier_id">
+                    <select class="form-select form-select-sm @error('supplier_id') is-invalid @enderror"
+                        name="supplier_id">
                         <option value="">— Chọn NCC —</option>
                         @foreach ($suppliers as $sup)
                         <option value="{{ $sup->id }}"
@@ -105,11 +114,15 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center py-2">
             <span class="fw-semibold">
-                <svg class="icon me-1 text-primary"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use></svg>
+                <svg class="icon me-1 text-primary">
+                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use>
+                </svg>
                 Chi tiết hàng hóa
             </span>
             <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow()">
-                <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use></svg>
+                <svg class="icon me-1">
+                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
+                </svg>
                 Thêm dòng
             </button>
         </div>
@@ -129,14 +142,18 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                             <th style="width:140px">Vị trí kho</th>
                             <th style="width:120px">
                                 Số Lot/Batch
-                                <svg class="icon icon-sm text-body-secondary" title="Bắt buộc với hàng theo Lô hoặc Lô+Serial">
-                                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}"></use>
+                                <svg class="icon icon-sm text-body-secondary"
+                                    title="Bắt buộc với hàng theo Lô hoặc Lô+Serial">
+                                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}">
+                                    </use>
                                 </svg>
                             </th>
                             <th style="width:120px">
                                 Số Serial
-                                <svg class="icon icon-sm text-body-secondary" title="Bắt buộc với hàng theo Serial hoặc Lô+Serial">
-                                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}"></use>
+                                <svg class="icon icon-sm text-body-secondary"
+                                    title="Bắt buộc với hàng theo Serial hoặc Lô+Serial">
+                                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}">
+                                    </use>
                                 </svg>
                             </th>
                             <th style="width:120px">Hạn dùng</th>
@@ -145,40 +162,78 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                     </thead>
                     <tbody id="detailBody">
 
-                        @if($isEdit && $receipt->details->count())
-                        @foreach($receipt->details as $i => $detail)
-                        @php $tracking = (int)($detail->product?->tracking_type ?? 1); @endphp
+                        @php
+                        $detailsOld = old('details');
+                        if ($detailsOld) {
+                        $rows = collect($detailsOld);
+                        } elseif ($isEdit) {
+                        $rows = $receipt->details;
+                        } else {
+                        $rows = collect();
+                        }
+                        @endphp
+
+                        @foreach($rows as $i => $detail)
+                        @php
+                        if (is_array($detail)) {
+                        // Dữ liệu cũ (old input) sau khi validate lỗi
+                        $productId = $detail['product_id'] ?? '';
+                        $product = $products->firstWhere('id', (int) $productId);
+                        $tracking = (int) ($product->tracking_type ?? 1);
+                        $uomId = $detail['uom_id'] ?? ($product->uom_id ?? '');
+                        $uomName = $product->uom?->name ?? '—';
+                        $expectedQty = $detail['expected_qty'] ?? '';
+                        $actualQty = $detail['actual_qty'] ?? '';
+                        $locationId = $detail['location_id'] ?? '';
+                        $lotNumber = $detail['lot_number'] ?? '';
+                        $serialNumber = $detail['serial_number'] ?? '';
+                        $expiryDate = $detail['expiry_date'] ?? '';
+                        } else {
+                        // Dữ liệu từ phiếu đang sửa
+                        $productId = $detail->product_id;
+                        $product = $detail->product;
+                        $tracking = (int) ($product->tracking_type ?? 1);
+                        $uomId = $detail->uom_id;
+                        $uomName = $detail->uom?->name ?? '—';
+                        $expectedQty = $detail->expected_qty;
+                        $actualQty = $detail->actual_qty;
+                        $locationId = $detail->location_id;
+                        $lotNumber = $detail->lot?->lot_number ?? '';
+                        $serialNumber = $detail->serial?->serial_number ?? '';
+                        $expiryDate = $detail->expiry_date
+                        ? \Carbon\Carbon::parse($detail->expiry_date)->format('Y-m-d')
+                        : '';
+                        }
+                        @endphp
                         <tr>
                             <td class="text-center text-body-secondary small">{{ $i + 1 }}</td>
                             <td>
                                 <select class="form-select form-select-sm product-select"
-                                    name="details[{{ $i }}][product_id]" required
-                                    onchange="onProductChange(this)">
+                                    name="details[{{ $i }}][product_id]" required onchange="onProductChange(this)">
                                     <option value="">— Chọn hàng hóa —</option>
                                     @foreach($products as $p)
-                                    <option value="{{ $p->id }}"
-                                        data-uom="{{ $p->uom?->name }}"
+                                    <option value="{{ $p->id }}" data-uom="{{ $p->uom?->name }}"
                                         data-uom-id="{{ $p->uom_id }}"
-                                        data-tracking="{{ (int)($p->tracking_type ?? 1) }}"
-                                        {{ $detail->product_id == $p->id ? 'selected' : '' }}>
+                                        data-tracking="{{ (int) ($p->tracking_type ?? 1) }}"
+                                        {{ (string) $productId === (string) $p->id ? 'selected' : '' }}>
                                         {{ $p->code }} — {{ $p->name }}
                                     </option>
                                     @endforeach
                                 </select>
                             </td>
                             <td>
-                                <input type="hidden" name="details[{{ $i }}][uom_id]" class="uom-hidden" value="{{ $detail->uom_id }}">
-                                <span class="uom-label text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</span>
+                                <input type="hidden" name="details[{{ $i }}][uom_id]" class="uom-hidden"
+                                    value="{{ $uomId }}">
+                                <span class="uom-label text-body-secondary small">{{ $uomName }}</span>
                             </td>
                             <td>
                                 <input type="number" class="form-control form-control-sm text-end"
-                                    name="details[{{ $i }}][expected_qty]" value="{{ $detail->expected_qty }}"
-                                    min="0.001" step="0.001" required oninput="updateTotals()">
+                                    name="details[{{ $i }}][expected_qty]" value="{{ $expectedQty }}" min="0.001"
+                                    step="0.001" required oninput="updateTotals()">
                             </td>
                             <td>
                                 <input type="number" class="form-control form-control-sm text-end actual-qty-input"
-                                    name="details[{{ $i }}][actual_qty]" value="{{ $detail->actual_qty }}"
-                                    min="0" step="0.001"
+                                    name="details[{{ $i }}][actual_qty]" value="{{ $actualQty }}" min="0" step="0.001"
                                     {{ in_array($tracking, [3,4]) ? 'readonly' : '' }}>
                             </td>
                             <td>
@@ -186,7 +241,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                                     <option value="">— Chọn —</option>
                                     @foreach($locations as $loc)
                                     <option value="{{ $loc->id }}"
-                                        {{ $detail->location_id == $loc->id ? 'selected' : '' }}>
+                                        {{ (string) $locationId === (string) $loc->id ? 'selected' : '' }}>
                                         {{ $loc->code }}
                                     </option>
                                     @endforeach
@@ -196,10 +251,8 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                             <td>
                                 <input type="text"
                                     class="form-control form-control-sm lot-input {{ in_array($tracking, [1,3]) ? 'bg-body-secondary' : '' }}"
-                                    name="details[{{ $i }}][lot_number]"
-                                    value="{{ $detail->lot?->lot_number ?? '' }}"
-                                    placeholder="{{ in_array($tracking, [1,3]) ? '—' : 'Số lot' }}"
-                                    maxlength="100"
+                                    name="details[{{ $i }}][lot_number]" value="{{ $lotNumber }}"
+                                    placeholder="{{ in_array($tracking, [1,3]) ? '—' : 'Số lot' }}" maxlength="100"
                                     {{ in_array($tracking, [1,3]) ? 'readonly' : '' }}
                                     {{ $tracking === 4 ? 'onchange="autoFillLot(this)"' : '' }}>
                             </td>
@@ -207,26 +260,25 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                             <td>
                                 <input type="text"
                                     class="form-control form-control-sm serial-input {{ in_array($tracking, [1,2]) ? 'bg-body-secondary' : '' }}"
-                                    name="details[{{ $i }}][lot_number]"
-                                    value="{{ $detail->serial?->serial_number ?? ($detail->lot?->lot_number ?? '') }}"
-                                    placeholder="{{ in_array($tracking, [1,2]) ? '—' : 'Mã serial' }}"
-                                    maxlength="100"
+                                    name="details[{{ $i }}][serial_number]" value="{{ $serialNumber }}"
+                                    placeholder="{{ in_array($tracking, [1,2]) ? '—' : 'Mã serial' }}" maxlength="100"
                                     {{ in_array($tracking, [1,2]) ? 'readonly' : '' }}>
                             </td>
                             <td>
                                 <input type="date" class="form-control form-control-sm"
-                                    name="details[{{ $i }}][expiry_date]"
-                                    value="{{ $detail->expiry_date ? \Carbon\Carbon::parse($detail->expiry_date)->format('Y-m-d') : '' }}">
+                                    name="details[{{ $i }}][expiry_date]" value="{{ $expiryDate }}">
                             </td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-outline-danger p-1"
                                     onclick="removeRow(this)" title="Xóa dòng">
-                                    <svg class="icon"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}"></use></svg>
+                                    <svg class="icon">
+                                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}">
+                                        </use>
+                                    </svg>
                                 </button>
                             </td>
                         </tr>
                         @endforeach
-                        @endif
 
                     </tbody>
                 </table>
@@ -240,7 +292,9 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                 Chưa có hàng hóa nào.
                 <br>
                 <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addRow()">
-                    <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use></svg>
+                    <svg class="icon me-1">
+                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
+                    </svg>
                     Thêm dòng đầu tiên
                 </button>
             </div>
@@ -257,12 +311,16 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
         <a href="{{ route('receipts.index') }}" class="btn btn-outline-secondary">Hủy</a>
         @if(!$isEdit)
         <button type="submit" class="btn btn-outline-primary" name="action" value="save_and_new">
-            <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use></svg>
+            <svg class="icon me-1">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
+            </svg>
             Lưu & tạo phiếu mới
         </button>
         @endif
         <button type="submit" class="btn btn-primary" name="action" value="save">
-            <svg class="icon me-1"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-save') }}"></use></svg>
+            <svg class="icon me-1">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-save') }}"></use>
+            </svg>
             {{ $isEdit ? 'Cập nhật phiếu' : 'Lưu phiếu nhập' }}
         </button>
     </div>
@@ -273,20 +331,20 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
 
 @push('scripts')
 <script>
-const PRODUCTS  = @json($productsJson);
+const PRODUCTS = @json($productsJson);
 const LOCATIONS = @json($locationsJson);
 
 // TRACKING constants (mirrors PHP)
-const TRACKING_NONE           = 1;
-const TRACKING_LOT            = 2;
-const TRACKING_SERIAL         = 3;
+const TRACKING_NONE = 1;
+const TRACKING_LOT = 2;
+const TRACKING_SERIAL = 3;
 const TRACKING_LOT_AND_SERIAL = 4;
 
-let rowIndex = {{ $isEdit ? $receipt->details->count() : 0 }};
+let rowIndex = <?php echo $rows->count(); ?>;
 
 // ── Áp tracking lên một <tr> ──────────────────────────────────────
 function applyTracking(tr, tracking) {
-    const lotInput    = tr.querySelector('.lot-input');
+    const lotInput = tr.querySelector('.lot-input');
     const serialInput = tr.querySelector('.serial-input');
     const actualInput = tr.querySelector('.actual-qty-input');
     if (!lotInput || !serialInput) return;
@@ -300,28 +358,42 @@ function applyTracking(tr, tracking) {
     switch (tracking) {
         case TRACKING_NONE:
             // Khóa cả 2
-            lotInput.readOnly    = true; lotInput.value    = ''; lotInput.placeholder    = '—';
-            serialInput.readOnly = true; serialInput.value = ''; serialInput.placeholder = '—';
+            lotInput.readOnly = true;
+            lotInput.value = '';
+            lotInput.placeholder = '—';
+            serialInput.readOnly = true;
+            serialInput.value = '';
+            serialInput.placeholder = '—';
             lotInput.classList.add('bg-body-secondary');
             serialInput.classList.add('bg-body-secondary');
-            if (actualInput) { actualInput.readOnly = false; actualInput.classList.remove('bg-body-secondary'); }
+            if (actualInput) {
+                actualInput.readOnly = false;
+                actualInput.classList.remove('bg-body-secondary');
+            }
             break;
 
         case TRACKING_LOT:
             // Mở lot, khóa serial
-            lotInput.placeholder    = 'Số lot / batch';
-            serialInput.readOnly    = true; serialInput.value = ''; serialInput.placeholder = '—';
+            lotInput.placeholder = 'Số lot / batch';
+            serialInput.readOnly = true;
+            serialInput.value = '';
+            serialInput.placeholder = '—';
             serialInput.classList.add('bg-body-secondary');
-            if (actualInput) { actualInput.readOnly = false; actualInput.classList.remove('bg-body-secondary'); }
+            if (actualInput) {
+                actualInput.readOnly = false;
+                actualInput.classList.remove('bg-body-secondary');
+            }
             break;
 
         case TRACKING_SERIAL:
             // Khóa lot, mở serial; actual_qty luôn = 1
-            lotInput.readOnly = true; lotInput.value = ''; lotInput.placeholder = '—';
+            lotInput.readOnly = true;
+            lotInput.value = '';
+            lotInput.placeholder = '—';
             lotInput.classList.add('bg-body-secondary');
             serialInput.placeholder = 'Mã serial';
             if (actualInput) {
-                actualInput.value    = 1;
+                actualInput.value = 1;
                 actualInput.readOnly = true;
                 actualInput.classList.add('bg-body-secondary');
             }
@@ -329,10 +401,10 @@ function applyTracking(tr, tracking) {
 
         case TRACKING_LOT_AND_SERIAL:
             // Mở cả 2; actual_qty = 1
-            lotInput.placeholder    = 'Số lot';
+            lotInput.placeholder = 'Số lot';
             serialInput.placeholder = 'Mã serial';
             if (actualInput) {
-                actualInput.value    = 1;
+                actualInput.value = 1;
                 actualInput.readOnly = true;
                 actualInput.classList.add('bg-body-secondary');
             }
@@ -342,21 +414,21 @@ function applyTracking(tr, tracking) {
 
 // ── Khi chọn sản phẩm ─────────────────────────────────────────────
 function onProductChange(sel) {
-    const opt      = sel.options[sel.selectedIndex];
-    const tr       = sel.closest('tr');
+    const opt = sel.options[sel.selectedIndex];
+    const tr = sel.closest('tr');
     const tracking = parseInt(opt.dataset.tracking) || TRACKING_NONE;
 
-    tr.querySelector('.uom-label').textContent  = opt.dataset.uom || '—';
-    tr.querySelector('.uom-hidden').value        = opt.dataset.uomId || '';
+    tr.querySelector('.uom-label').textContent = opt.dataset.uom || '—';
+    tr.querySelector('.uom-hidden').value = opt.dataset.uomId || '';
 
     applyTracking(tr, tracking);
 }
 
 // ── Auto-fill lot cho các dòng cùng sản phẩm (tracking=4) ─────────
 function autoFillLot(lotInput) {
-    const tr       = lotInput.closest('tr');
-    const sel      = tr.querySelector('.product-select');
-    const prodId   = sel.value;
+    const tr = lotInput.closest('tr');
+    const sel = tr.querySelector('.product-select');
+    const prodId = sel.value;
     const lotValue = lotInput.value.trim();
     if (!prodId || !lotValue) return;
 
@@ -376,33 +448,33 @@ function autoFillLot(lotInput) {
 // ── Khi nhập SL dự kiến (tự nhân dòng cho Serial) ─────────────────
 function onExpectedQtyChange(input) {
     updateTotals();
-    const tr       = input.closest('tr');
-    const sel      = tr.querySelector('.product-select');
-    const opt      = sel.options[sel.selectedIndex];
+    const tr = input.closest('tr');
+    const sel = tr.querySelector('.product-select');
+    const opt = sel.options[sel.selectedIndex];
     const tracking = parseInt(opt.dataset.tracking) || TRACKING_NONE;
-    const qty      = parseInt(input.value) || 1;
+    const qty = parseInt(input.value) || 1;
 
     if (!([TRACKING_SERIAL, TRACKING_LOT_AND_SERIAL].includes(tracking)) || qty <= 1) return;
 
-    const locVal    = tr.querySelector('select[name$="[location_id]"]').value;
+    const locVal = tr.querySelector('select[name$="[location_id]"]').value;
     const expiryVal = tr.querySelector('input[name$="[expiry_date]"]').value;
-    const lotVal    = tr.querySelector('.lot-input')?.value ?? '';
-    const prodVal   = sel.value;
+    const lotVal = tr.querySelector('.lot-input')?.value ?? '';
+    const prodVal = sel.value;
 
     input.value = 1;
 
     for (let n = 1; n < qty; n++) {
         document.getElementById('detailBody').insertAdjacentHTML('beforeend', rowTemplate(rowIndex));
-        const newTr  = document.getElementById('detailBody').lastElementChild;
+        const newTr = document.getElementById('detailBody').lastElementChild;
         rowIndex++;
 
         const newSel = newTr.querySelector('.product-select');
         newSel.value = prodVal;
         onProductChange(newSel);
 
-        newTr.querySelector('select[name$="[location_id]"]').value      = locVal;
-        newTr.querySelector('input[name$="[expiry_date]"]').value        = expiryVal;
-        newTr.querySelector('input[name$="[expected_qty]"]').value       = 1;
+        newTr.querySelector('select[name$="[location_id]"]').value = locVal;
+        newTr.querySelector('input[name$="[expiry_date]"]').value = expiryVal;
+        newTr.querySelector('input[name$="[expected_qty]"]').value = 1;
 
         // Điền sẵn lot nếu tracking=4
         if (tracking === TRACKING_LOT_AND_SERIAL && lotVal) {
@@ -461,7 +533,7 @@ function rowTemplate(i) {
   </td>
   <td>
     <input type="text" class="form-control form-control-sm serial-input bg-body-secondary"
-           name="details[${i}][lot_number]" placeholder="—" maxlength="100" readonly
+           name="details[${i}][serial_number]" placeholder="—" maxlength="100" readonly
            oninput="clearFieldError(this)">
   </td>
   <td>
@@ -477,12 +549,16 @@ function rowTemplate(i) {
 
 function addRow() {
     document.getElementById('detailBody').insertAdjacentHTML('beforeend', rowTemplate(rowIndex++));
-    syncRowNumbers(); toggleEmptyState(); updateTotals();
+    syncRowNumbers();
+    toggleEmptyState();
+    updateTotals();
 }
 
 function removeRow(btn) {
     btn.closest('tr').remove();
-    syncRowNumbers(); toggleEmptyState(); updateTotals();
+    syncRowNumbers();
+    toggleEmptyState();
+    updateTotals();
 }
 
 function syncRowNumbers() {
@@ -501,7 +577,10 @@ function updateTotals() {
     let total = 0;
     document.querySelectorAll('input[name$="[expected_qty]"]').forEach(inp => total += parseFloat(inp.value) || 0);
     document.getElementById('totalExpected').textContent =
-        total.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+        total.toLocaleString('vi-VN', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 3
+        });
 }
 
 function clearFieldError(input) {
@@ -512,7 +591,7 @@ function clearFieldError(input) {
 }
 
 // ── Hiện/ẩn NCC ───────────────────────────────────────────────────
-document.getElementById('receiptType').addEventListener('change', function () {
+document.getElementById('receiptType').addEventListener('change', function() {
     document.getElementById('supplierGroup').style.display = this.value == '1' ? '' : 'none';
 });
 
@@ -520,10 +599,10 @@ document.getElementById('receiptType').addEventListener('change', function () {
 function validateLotSerial() {
     const errors = [];
     document.querySelectorAll('#detailBody tr').forEach((tr, i) => {
-        const sel      = tr.querySelector('.product-select');
-        const opt      = sel?.options[sel.selectedIndex];
+        const sel = tr.querySelector('.product-select');
+        const opt = sel?.options[sel.selectedIndex];
         const tracking = parseInt(opt?.dataset?.tracking) || TRACKING_NONE;
-        const lotInput    = tr.querySelector('.lot-input');
+        const lotInput = tr.querySelector('.lot-input');
         const serialInput = tr.querySelector('.serial-input');
         [lotInput, serialInput].forEach(el => el?.classList.remove('is-invalid'));
 
@@ -547,19 +626,7 @@ function validateLotSerial() {
     return errors;
 }
 
-document.getElementById('receiptForm').addEventListener('submit', function (e) {
-    // Với tracking=4: copy giá trị serial-input vào hidden name serial_number trước khi submit
-    document.querySelectorAll('#detailBody tr').forEach(tr => {
-        const sel      = tr.querySelector('.product-select');
-        const opt      = sel?.options[sel.selectedIndex];
-        const tracking = parseInt(opt?.dataset?.tracking) || TRACKING_NONE;
-        if (tracking !== TRACKING_LOT_AND_SERIAL) return;
-
-        const serialInput = tr.querySelector('.serial-input');
-        // Đổi name của serial-input thành serial_number
-        if (serialInput) serialInput.name = serialInput.name.replace('[lot_number]', '[serial_number]');
-    });
-
+document.getElementById('receiptForm').addEventListener('submit', function(e) {
     const errors = validateLotSerial();
     if (!errors.length) return;
 
@@ -571,7 +638,10 @@ document.getElementById('receiptForm').addEventListener('submit', function (e) {
             <ul class="mb-0 mt-1 ps-4">${errors.map(m => `<li>${m}</li>`).join('')}</ul>
             <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
         </div>`;
-    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    container.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest'
+    });
     document.querySelector('.lot-input.is-invalid, .serial-input.is-invalid')?.focus();
 });
 
@@ -588,9 +658,9 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleEmptyState();
     updateTotals();
 
-    @if(!$isEdit)
+    <?php if ($rows->count() === 0): ?>
     addRow();
-    @endif
+    <?php endif; ?>
 });
 </script>
 @endpush
