@@ -340,8 +340,8 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
                         <tr>
                             <th>Vị trí</th>
                             <th>Lot</th>
-                            <th class="text-end">SL gợi ý</th>
-                            <th>Hạn dùng</th>
+                            <th class="text-end pe-4">SL gợi ý</th>
+                            <th class="ps-3">Hạn dùng</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -355,9 +355,9 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
                             <td class="small text-body-secondary">
                                 {{ $s['lot_id'] ? (\App\Models\Lot::find($s['lot_id'])?->lot_number ?? '—') : '—' }}
                             </td>
-                            <td class="text-end fw-semibold">{{ number_format($s['qty_suggest'], 3) }}</td>
+                            <td class="text-end fw-semibold pe-4">{{ number_format($s['qty_suggest'], 3) }}</td>
                             <td
-                                class="small {{ $s['expiry_date'] && \Carbon\Carbon::parse($s['expiry_date'])->diffInDays(now(), false) > 0 ? 'text-danger' : '' }}">
+                                class="small ps-3 {{ $s['expiry_date'] && \Carbon\Carbon::parse($s['expiry_date'])->diffInDays(now(), false) > 0 ? 'text-danger' : '' }}">
                                 {{ $s['expiry_date'] ? \Carbon\Carbon::parse($s['expiry_date'])->format('d/m/Y') : '—' }}
                             </td>
                         </tr>

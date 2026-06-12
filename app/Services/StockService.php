@@ -507,11 +507,6 @@ class StockService
         $query = match ($strategy) {
             'FEFO' => $query->orderByRaw("
                 CASE
-                    WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
-                    WHEN serial_id IS NOT NULL THEN (SELECT expiry_date FROM serials WHERE id = serial_id)
-                    ELSE expiry_date
-                END ASC,
-                CASE
                     WHEN (
                         CASE
                             WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
@@ -519,7 +514,16 @@ class StockService
                             ELSE expiry_date
                         END
                     ) IS NULL THEN 1 ELSE 0
-                END ASC
+                END ASC,
+                CASE
+                    WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
+                    WHEN serial_id IS NOT NULL THEN (SELECT expiry_date FROM serials WHERE id = serial_id)
+                    ELSE expiry_date
+                END ASC,
+                CASE
+                    WHEN lot_id IS NULL AND serial_id IS NULL THEN 1 ELSE 0
+                END ASC,
+                received_date ASC
             "),
             'FIFO' => $query->orderBy('received_date', 'asc'),
             default => $query,
