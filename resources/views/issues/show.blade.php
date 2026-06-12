@@ -240,6 +240,7 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
                                 <th class="text-end">Số lượng</th>
                                 <th>Vị trí kho</th>
                                 <th>Lot / Batch</th>
+                                <th>Số Serial</th>
                                 <th>Ghi chú</th>
                                 @if(in_array($issueStatus, [1, 2, 3]))
                                 <th style="width:90px">Gợi ý</th>
@@ -267,6 +268,7 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
                                     @endif
                                 </td>
                                 <td class="text-body-secondary small">{{ $detail->lot?->lot_number ?? '—' }}</td>
+                                <td class="text-body-secondary small">{{ $detail->serial?->serial_number ?? '—' }}</td>
                                 <td class="text-body-secondary small">{{ $detail->note ?? '—' }}</td>
                                 @if(in_array($issueStatus, [1, 2, 3]))
                                 <td>
@@ -295,7 +297,7 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="8" class="text-center text-body-secondary py-4">Không có dòng chi tiết.
+                                <td colspan="9" class="text-center text-body-secondary py-4">Không có dòng chi tiết.
                                 </td>
                             </tr>
                             @endforelse
@@ -303,7 +305,7 @@ $typeLabels = [1 => 'Sản xuất', 2 => 'Bảo trì', 3 => 'Mượn', 4 => 'Kh�
                         @if($issue->details->count())
                         <tfoot class="table-light">
                             <tr>
-                                <td colspan="{{ in_array($issue->status, [1,2,3]) ? 7 : 6 }}"
+                                <td colspan="{{ in_array($issue->status, [1,2,3]) ? 8 : 7 }}"
                                     class="text-end fw-semibold small text-body-secondary">
                                     Tổng cộng: <span class="fw-bold text-body">{{ $issue->details->count() }} mặt
                                         hàng</span>

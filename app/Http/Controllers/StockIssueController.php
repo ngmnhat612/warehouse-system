@@ -131,6 +131,7 @@ class StockIssueController extends Controller
             'details.product.uom',
             'details.location',
             'details.lot',
+            'details.serial',
             'details.uom',
         ]);
 
@@ -546,6 +547,7 @@ class StockIssueController extends Controller
             'details.*.quantity'              => 'required|numeric|min:0.001',
             'details.*.location_id'           => 'required|exists:locations,id',
             'details.*.lot_id'                => 'nullable|exists:lots,id',
+            'details.*.serial_id'             => 'nullable|exists:serials,id',
             'details.*.note'                  => 'nullable|string|max:200',
         ], [
             'code.unique'                     => 'Mã phiếu đã tồn tại.',

@@ -569,11 +569,13 @@ window.onLocationChange = function(locationSel) {
     // Tự động chọn nếu chỉ có đúng 1 lot
     if (lots.length === 1) {
         lotSel.selectedIndex = 1;
+        if (lotHidden) lotHidden.value = lots[0].id;
         lotSel.dispatchEvent(new Event('change'));
     }
     // Tự động chọn nếu chỉ có đúng 1 serial
     if (serials.length === 1) {
         serialSel.selectedIndex = 1;
+        if (serialHidden) serialHidden.value = serials[0].id;
         serialSel.dispatchEvent(new Event('change'));
     }
 }
@@ -668,15 +670,35 @@ function initExistingRow(tr) {
 
             if (currentLocation) {
                 locationSel.value = currentLocation;
-                onLocationChange(locationSel);
+
+                // Populate lot/serial options mà không reset hidden fields
+                const stockMap = tr.dataset.stockMap ? JSON.parse(tr.dataset.stockMap) : {};
+                const locationId = parseInt(currentLocation);
+                const lots = stockMap[locationId]?.lots || [];
+                const serials = stockMap[locationId]?.serials || [];
+
+                const lotHidden = tr.querySelector('.lot-id-hidden');
+                const serialHidden = tr.querySelector('.serial-id-hidden');
+
+                lotSel.innerHTML = '<option value="">— Không chọn —</option>' +
+                    lots.map(l =>
+                        `<option value="${l.id}">${l.lot_number}` +
+                        `${l.expiry_date ? ' · HSD: ' + l.expiry_date : ''}` +
+                        ` · Tồn: ${l.available_qty.toLocaleString('vi-VN')}</option>`
+                    ).join('');
+
+                serialSel.innerHTML = '<option value="">— Không chọn —</option>' +
+                    serials.map(s =>
+                        `<option value="${s.id}">${s.serial_number} · Tồn: ${s.available_qty.toLocaleString('vi-VN')}</option>`
+                    ).join('');
 
                 if (currentLotId) {
                     lotSel.value = currentLotId;
-                    lotSel.dispatchEvent(new Event('change'));
+                    if (lotHidden) lotHidden.value = currentLotId;
                 }
                 if (currentSerialId) {
                     serialSel.value = currentSerialId;
-                    serialSel.dispatchEvent(new Event('change'));
+                    if (serialHidden) serialHidden.value = currentSerialId;
                 }
             }
             lotSel.disabled = false;
