@@ -495,48 +495,57 @@ class StockService
      * @param  string  $strategy  'FEFO' | 'FIFO'
      * @return \Illuminate\Database\Eloquent\Collection
      */
-    public function suggestStockForIssue(int $productId, float $neededQty, string $strategy = 'FEFO'): \Illuminate\Support\Collection
+    public function suggestStockForIssue(int $productId, float $neededQty, ?int $locationId = null): \Illuminate\Support\Collection
     {
         $query = Stock::with(['lot', 'serial', 'location'])
             ->where('product_id', $productId)
             ->where('quantity', '>', 0)
-            ->whereRaw('quantity - reserved_qty > 0')
-            ->whereHas('location', fn ($q) => $q->where('type', 1)); // Internal locations only
+            ->whereRaw('(quantity - reserved_qty) > 0')
+            ->whereHas('location', fn ($q) => $q->where('type', 1));
 
-        // Sắp xếp theo chiến lược
-        $query = match ($strategy) {
-            'FEFO' => $query->orderByRaw("
+        if ($locationId) {
+            $query->where('location_id', $locationId);
+        }
+
+        // Kiểm tra có HSD nào không trong phạm vi truy vấn
+        $hasExpiry = (clone $query)->where(function ($q) {
+            $q->whereHas('lot', fn ($lq) => $lq->whereNotNull('expiry_date'))
+            ->orWhereHas('serial', fn ($sq) => $sq->whereNotNull('expiry_date'));
+        })->exists();
+
+        // Nếu có HSD → FEFO, không có → FIFO
+        if ($hasExpiry) {
+            $query->orderByRaw("
                 CASE
-                    WHEN (
-                        CASE
-                            WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
-                            WHEN serial_id IS NOT NULL THEN (SELECT expiry_date FROM serials WHERE id = serial_id)
-                            ELSE expiry_date
-                        END
-                    ) IS NULL THEN 1 ELSE 0
+                    WHEN lot_id IS NOT NULL AND (SELECT expiry_date FROM lots WHERE id = lot_id) IS NOT NULL THEN 0
+                    WHEN serial_id IS NOT NULL AND (SELECT expiry_date FROM serials WHERE id = serial_id) IS NOT NULL THEN 0
+                    ELSE 1
                 END ASC,
                 CASE
                     WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
                     WHEN serial_id IS NOT NULL THEN (SELECT expiry_date FROM serials WHERE id = serial_id)
-                    ELSE expiry_date
-                END ASC,
-                CASE
-                    WHEN lot_id IS NULL AND serial_id IS NULL THEN 1 ELSE 0
+                    ELSE NULL
                 END ASC,
                 received_date ASC
-            "),
-            'FIFO' => $query->orderBy('received_date', 'asc'),
-            default => $query,
-        };
+            ");
+        } else {
+            $query->orderBy('received_date', 'asc');
+        }
 
         $suggestions = collect();
-        $remaining = $neededQty;
+        $remaining   = $neededQty;
 
         foreach ($query->get() as $stock) {
             if ($remaining <= 0) break;
 
-            $available = $stock->quantity - $stock->reserved_qty;
+            $available = (float) $stock->quantity - (float) $stock->reserved_qty;
+            if ($available <= 0) continue;
+
             $take = min($available, $remaining);
+
+            $expiryDate = $stock->lot?->expiry_date
+                ?? $stock->serial?->expiry_date
+                ?? null;
 
             $suggestions->push([
                 'stock_id'    => $stock->id,
@@ -544,18 +553,16 @@ class StockService
                 'lot_id'      => $stock->lot_id,
                 'serial_id'   => $stock->serial_id,
                 'qty_suggest' => $take,
-                'expiry_date' => $stock->expiry_date
-                    ?? ($stock->lot?->expiry_date)
-                    ?? ($stock->serial?->expiry_date),
+                'expiry_date' => $expiryDate instanceof \Carbon\Carbon
+                    ? $expiryDate->toDateString()
+                    : $expiryDate,
             ]);
 
             $remaining -= $take;
         }
 
         if ($remaining > 0) {
-            throw new \Exception(
-                "Không đủ tồn kho. Còn thiếu: {$remaining}"
-            );
+            throw new \Exception("Không đủ tồn kho. Còn thiếu: {$remaining}");
         }
 
         return $suggestions;

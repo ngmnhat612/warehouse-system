@@ -226,8 +226,9 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                                             min="0.001" step="0.001" required oninput="checkStock(this)">
                                     </td>
                                     <td>
-                                        <select class="form-select form-select-sm" name="details[{{ $i }}][location_id]"
-                                            required>
+                                        <select class="form-select form-select-sm location-select"
+                                            name="details[${i}][location_id]" required
+                                            onchange="onLocationChange(this)">
                                             <option value="">— Chọn —</option>
                                             @foreach($locations as $loc)
                                             <option value="{{ $loc->id }}"

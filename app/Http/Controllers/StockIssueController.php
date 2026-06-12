@@ -138,11 +138,10 @@ class StockIssueController extends Controller
         if (in_array($issue->status, [1, 2, 3])) {
             foreach ($issue->details as $detail) {
                 try {
-                    $strategy = $detail->product?->stock_rotation === 2 ? 'FEFO' : 'FIFO';
-                    $suggest  = $this->stockService->suggestStockForIssue(
+                    $suggest = $this->stockService->suggestStockForIssue(
                         $detail->product_id,
                         $detail->quantity,
-                        $strategy
+                        $detail->location_id
                     );
                     $suggestions[$detail->id] = $suggest;
                 } catch (\Exception $e) {
@@ -316,7 +315,7 @@ class StockIssueController extends Controller
                     $suggestions = $this->stockService->suggestStockForIssue(
                         $detail->product_id,
                         $detail->quantity,
-                        $strategy
+                        $detail->location_id
                     );
 
                     foreach ($suggestions as $s) {
