@@ -723,6 +723,7 @@ document.addEventListener('change', function(e) {
         const tr = e.target.closest('tr');
         const serialHidden = tr.querySelector('.serial-id-hidden');
         if (serialHidden) serialHidden.value = e.target.value;
+        checkDuplicateSerials();
     }
 });
 
@@ -811,6 +812,42 @@ function checkAllStock() {
 document.getElementById('issueType').addEventListener('change', function() {
     document.getElementById('returnDateGroup').style.display = this.value == '3' ? '' : 'none';
 });
+
+function checkDuplicateSerials() {
+    const seen = {};
+    let hasDup = false;
+
+    document.querySelectorAll('#detailBody tr').forEach(tr => {
+        const serialSel = tr.querySelector('.serial-select');
+        const val = serialSel?.value;
+        if (!val) return;
+
+        if (seen[val]) {
+            serialSel.classList.add('is-invalid');
+            seen[val].classList.add('is-invalid');
+            hasDup = true;
+        } else {
+            seen[val] = serialSel;
+            serialSel.classList.remove('is-invalid');
+        }
+    });
+
+    const btn = document.querySelector('button[name="action"]');
+    if (btn) btn.disabled = hasDup;
+
+    let warn = document.getElementById('serialDupWarning');
+    if (hasDup) {
+        if (!warn) {
+            warn = document.createElement('div');
+            warn.id = 'serialDupWarning';
+            warn.className = 'alert alert-danger mt-3';
+            warn.innerHTML = '<strong>Lỗi:</strong> Có số Serial bị chọn trùng nhau trong cùng phiếu.';
+            document.getElementById('detailTable').closest('.card').after(warn);
+        }
+    } else {
+        warn?.remove();
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     toggleEmptyState();

@@ -560,6 +560,17 @@ class StockIssueController extends Controller
             'details.*.quantity.min'          => 'Số lượng phải lớn hơn 0.',
             'details.*.location_id.required'  => 'Vui lòng chọn vị trí kho.',
         ]);
+
+        // Kiểm tra trùng serial_id trong cùng một phiếu
+        $serials = collect($request->details ?? [])
+            ->pluck('serial_id')
+            ->filter(); // bỏ null/empty
+
+        if ($serials->count() !== $serials->unique()->count()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'details' => ['Mỗi số Serial chỉ được xuất một lần trong cùng phiếu.'],
+            ]);
+        }
     }
 
     private function saveDetails(StockIssue $issue, array $details): void
