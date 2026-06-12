@@ -66,12 +66,13 @@ class StockIssueController extends Controller
             ->groupBy('product_id');
 
         $productsJson  = $products->map(fn($p) => [
-            'id'     => $p->id,
-            'code'   => $p->code,
-            'name'   => $p->name,
-            'uom'    => $p->uom?->name ?? '—',
-            'uom_id' => $p->uom_id,
-            'stock'  => (float) ($p->total_stock ?? 0),
+            'id'            => $p->id,
+            'code'          => $p->code,
+            'name'          => $p->name,
+            'uom'           => $p->uom?->name ?? '—',
+            'uom_id'        => $p->uom_id,
+            'stock'         => (float) ($p->total_stock ?? 0),
+            'tracking_type' => (int) $p->tracking_type,   // ← THÊM
         ])->values();
 
         $locationsJson = $locations->map(fn($l) => [
@@ -200,12 +201,13 @@ class StockIssueController extends Controller
             ->orderBy('lot_number')->get()->groupBy('product_id');
 
         $productsJson  = $products->map(fn($p) => [
-            'id'     => $p->id,
-            'code'   => $p->code,
-            'name'   => $p->name,
-            'uom'    => $p->uom?->name ?? '—',
-            'uom_id' => $p->uom_id,
-            'stock'  => (float) ($p->total_stock ?? 0),
+            'id'            => $p->id,
+            'code'          => $p->code,
+            'name'          => $p->name,
+            'uom'           => $p->uom?->name ?? '—',
+            'uom_id'        => $p->uom_id,
+            'stock'         => (float) ($p->total_stock ?? 0),
+            'tracking_type' => (int) $p->tracking_type,   // ← THÊM
         ])->values();
 
         $locationsJson = $locations->map(fn($l) => [

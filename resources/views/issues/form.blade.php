@@ -198,7 +198,7 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
 
                                 @if($isEdit && $issue->details->count())
                                 @foreach($issue->details as $i => $detail)
-                                <tr>
+                                <tr data-tracking="{{ $detail->product->tracking_type ?? 1 }}">
                                     <td class="text-center text-body-secondary small">{{ $i + 1 }}</td>
                                     <td>
                                         <select class="form-select form-select-sm product-select"
@@ -208,6 +208,7 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                                             @foreach($products as $p)
                                             <option value="{{ $p->id }}" data-uom="{{ $p->uom?->name }}"
                                                 data-uom-id="{{ $p->uom_id }}" data-stock="{{ $p->total_stock }}"
+                                                data-tracking="{{ $p->tracking_type }}"
                                                 {{ $detail->product_id == $p->id ? 'selected' : '' }}>
                                                 {{ $p->code }} — {{ $p->name }}
                                             </option>
@@ -223,7 +224,7 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                                     <td>
                                         <input type="number" class="form-control form-control-sm text-end qty-input"
                                             name="details[{{ $i }}][quantity]" value="{{ $detail->quantity }}"
-                                            min="0.001" step="0.001" required oninput="checkStock(this)">
+                                            min="0.001" step="0.001" required oninput="handleQtyInput(this)">
                                     </td>
                                     <td>
                                         <select class="form-select form-select-sm location-select"
@@ -328,7 +329,7 @@ let rowIndex = <?php echo $isEdit ? $issue->details->count() : 0; ?>;
 // ── Template dòng chi tiết ─────────────────────────────────────────
 function rowTemplate(i) {
     const productOptions = PRODUCTS.map(p =>
-        `<option value="${p.id}" data-uom="${p.uom}" data-uom-id="${p.uom_id}" data-stock="${p.stock}">
+        `<option value="${p.id}" data-uom="${p.uom}" data-uom-id="${p.uom_id}" data-stock="${p.stock}" data-tracking="${p.tracking_type}">
       ${p.code} — ${p.name}
     </option>`
     ).join('');
@@ -338,7 +339,7 @@ function rowTemplate(i) {
     ).join('');
 
     return `
-  <tr>
+  <tr data-tracking="1">
     <td class="text-center text-body-secondary small">${i + 1}</td>
     <td>
       <select class="form-select form-select-sm product-select"
@@ -356,7 +357,7 @@ function rowTemplate(i) {
       <input type="number" class="form-control form-control-sm text-end qty-input"
              name="details[${i}][quantity]"
              min="0.001" step="0.001" required placeholder="0"
-             oninput="checkStock(this); updateTotals()">
+             oninput="handleQtyInput(this)">
     </td>
     <td>
       <select class="form-select form-select-sm location-select" name="details[${i}][location_id]"
@@ -431,6 +432,8 @@ window.onProductChange = function(sel) {
     const opt = sel.options[sel.selectedIndex];
     const tr = sel.closest('tr');
     const productId = parseInt(opt.value);
+
+    tr.dataset.tracking = opt.dataset.tracking || 1;
 
     // ĐVT
     tr.querySelector('.uom-label').textContent = opt.dataset.uom || '—';
@@ -594,6 +597,66 @@ document.addEventListener('change', function(e) {
         if (serialHidden) serialHidden.value = val.split(':')[1];
     }
 });
+
+// ── SL hàng quản lý theo Serial → tự sinh thêm dòng (mỗi dòng = 1 serial) ──
+window.handleQtyInput = function(qtyInput) {
+    const tr = qtyInput.closest('tr');
+    const tracking = parseInt(tr.dataset.tracking) || 1;
+    const isSerialManaged = (tracking === 3 || tracking === 4); // SERIAL hoặc LOT+SERIAL
+
+    if (isSerialManaged) {
+        const qty = parseInt(qtyInput.value) || 0;
+
+        if (qty > 1) {
+            const productSel = tr.querySelector('.product-select');
+            const productOpt = productSel.options[productSel.selectedIndex];
+            const locationSel = tr.querySelector('.location-select');
+            const locationVal = locationSel.value;
+            const stockMapStr = tr.dataset.stockMap || '';
+
+            qtyInput.value = 1;
+
+            for (let n = 1; n < qty; n++) {
+                addRow();
+                const newTr = document.getElementById('detailBody').lastElementChild;
+
+                // Copy hàng hóa, ĐVT, tồn, tracking
+                const newProductSel = newTr.querySelector('.product-select');
+                newProductSel.value = productSel.value;
+                newTr.querySelector('.uom-label').textContent = productOpt.dataset.uom || '—';
+                newTr.querySelector('.uom-hidden').value = productOpt.dataset.uomId || '';
+                const stockEl = newTr.querySelector('.stock-display');
+                stockEl.textContent = (parseFloat(productOpt.dataset.stock) || 0).toLocaleString('vi-VN');
+                stockEl.dataset.stock = productOpt.dataset.stock || 0;
+                newTr.dataset.tracking = tracking;
+                newTr.querySelector('.qty-input').value = 1;
+
+                // Copy danh sách vị trí/lot/serial đã fetch (không gọi lại API)
+                if (stockMapStr) {
+                    newTr.dataset.stockMap = stockMapStr;
+                    const locMap = JSON.parse(stockMapStr);
+                    const locs = Object.values(locMap);
+                    const newLocationSel = newTr.querySelector('.location-select');
+                    newLocationSel.innerHTML =
+                        '<option value="">— Chọn vị trí lấy hàng —</option>' +
+                        locs.map(l =>
+                            `<option value="${l.id}">${l.code}${l.name ? ' — ' + l.name : ''} ` +
+                            `(Khả dụng: ${l.available_qty.toLocaleString('vi-VN')})</option>`
+                        ).join('');
+                    newLocationSel.disabled = false;
+
+                    if (locationVal) {
+                        newLocationSel.value = locationVal;
+                        onLocationChange(newLocationSel);
+                    }
+                }
+            }
+        }
+    }
+
+    checkStock(qtyInput);
+    updateTotals();
+}
 
 // ── Kiểm tra SL xuất so với tồn ───────────────────────────────────
 window.checkStock = function(qtyInput) {
