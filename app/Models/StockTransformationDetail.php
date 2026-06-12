@@ -10,12 +10,23 @@ class StockTransformationDetail extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'stock_transformation_id', 'product_id', 'lot_id', 'serial_id',
-        'location_id', 'uom_id', 'direction', 'quantity', 'expiry_date',
+        'stock_transformation_id',
+        'product_id',
+        'lot_id',
+        'lot_number',       // Số lô mới (PRODUCE)
+        'serial_id',
+        'serial_number',    // Số serial mới (PRODUCE)
+        'location_id',
+        'uom_id',
+        'direction',
+        'quantity',
+        'bom_qty',          // SL theo BOM trước khi nhân hệ số
+        'expiry_date',
     ];
 
     protected $casts = [
         'quantity'    => 'decimal:3',
+        'bom_qty'     => 'decimal:3',
         'expiry_date' => 'date',
     ];
 

@@ -21,6 +21,7 @@ use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\InventoryCheckController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\ReportAlertController;
+use App\Http\Controllers\StockTransformationController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -219,6 +220,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('stocktakes/{stocktake}/export/excel',  [InventoryCheckController::class, 'downloadTemplate'])->name('stocktakes.export.excel');
     Route::get('stocktakes/{stocktake}/export/pdf',    [InventoryCheckController::class, 'exportPdf'])->name('stocktakes.export.pdf');
     Route::post('stocktakes/{stocktake}/import/excel', [InventoryCheckController::class, 'importExcel'])->name('stocktakes.import.excel');
+
+    // ── TÁCH / GHÉP HÀNG HÓA ──────────────────────────────────────
+    Route::get('transformations/locations-by-product/{product}', [StockTransformationController::class, 'locationsByProduct'])->name('transformations.locations-by-product');
+    Route::resource('transformations', StockTransformationController::class);
+    Route::post('transformations/{transformation}/submit',  [StockTransformationController::class, 'submit'])->name('transformations.submit');
+    Route::post('transformations/{transformation}/approve', [StockTransformationController::class, 'approve'])->name('transformations.approve');
+    Route::post('transformations/{transformation}/confirm', [StockTransformationController::class, 'confirm'])->name('transformations.confirm');
+    Route::post('transformations/{transformation}/cancel',  [StockTransformationController::class, 'cancel'])->name('transformations.cancel');
+    Route::get('transformations/{transformation}/print',    [StockTransformationController::class, 'print'])->name('transformations.print');
     
     // ── TỒN KHO ───────────────────────────────────────────────────────
     Route::prefix('inventory')->name('inventory.')->group(function () {

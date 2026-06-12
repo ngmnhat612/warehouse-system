@@ -10,6 +10,10 @@ use App\Models\Location;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use App\Models\Lot;
+use App\Models\Product;
+use App\Models\Serial;
+use App\Models\StockTransformation;
 
 use Carbon\Carbon;
 
@@ -204,6 +208,149 @@ class StockService
 
             return $stock->fresh();
         });
+    }
+
+    // =========================================================================
+    // PUBLIC API — Tách / Ghép hàng hóa
+    // =========================================================================
+
+    /**
+     * Áp dụng phiếu tách/ghép vào tồn kho.
+     *
+     * Logic:
+     *   1. Với mỗi dòng CONSUME → decrease() tồn kho nguồn
+     *   2. Tạo Lot / Serial mới cho dòng PRODUCE nếu cần
+     *   3. Với mỗi dòng PRODUCE  → increase() tồn kho đích
+     *   4. Ghi ledger với type TYPE_SPLIT hoặc TYPE_BUNDLE
+     *
+     * Toàn bộ chạy trong một DB Transaction duy nhất (gọi từ Controller).
+     *
+     * @throws \Exception  Khi không đủ tồn kho hoặc đang freeze
+     */
+    public function applyTransformation(StockTransformation $transformation): void
+    {
+        $type = $transformation->type === StockTransformation::TYPE_SPLIT
+            ? self::TYPE_SPLIT
+            : self::TYPE_BUNDLE;
+
+        $transformation->loadMissing([
+            'consumeDetails.product',
+            'consumeDetails.lot',
+            'consumeDetails.serial',
+            'produceDetails.product',
+        ]);
+
+        // ── BƯỚC 1: Trừ tồn kho các dòng đầu vào (CONSUME) ──────────────
+        foreach ($transformation->consumeDetails as $d) {
+            $this->checkFreeze($d->location_id, $d->product_id);
+
+            $this->decrease([
+                'product_id'       => $d->product_id,
+                'location_id'      => $d->location_id,
+                'lot_id'           => $d->lot_id,
+                'serial_id'        => $d->serial_id,
+                'quantity'         => (float) $d->quantity,
+                'transaction_type' => $type,
+                'reference_id'     => $transformation->id,
+                'reference_type'   => 'stock_transformation',
+                'reference_code'   => $transformation->code,
+                'note'             => "Tách/ghép: {$transformation->code} — đầu vào",
+                'created_by'       => $transformation->confirmed_by ?? Auth::id(),
+            ]);
+
+            // Đánh dấu Serial nguồn là đã xuất
+            if ($d->serial_id) {
+                Serial::where('id', $d->serial_id)
+                    ->update(['status' => Serial::STATUS_ISSUED]);
+            }
+        }
+
+        // ── BƯỚC 2 & 3: Tạo Lot/Serial mới + cộng tồn kho (PRODUCE) ─────
+        foreach ($transformation->produceDetails as $d) {
+            $this->checkFreeze($d->location_id, $d->product_id);
+
+            $lotId    = null;
+            $serialId = null;
+            $tracking = (int) ($d->product?->tracking_type ?? Product::TRACKING_NONE);
+
+            // Tạo Lot mới nếu cần
+            if (
+                in_array($tracking, [Product::TRACKING_LOT, Product::TRACKING_LOT_AND_SERIAL])
+                && filled($d->lot_number)
+            ) {
+                $lot = Lot::create([
+                    'product_id'  => $d->product_id,
+                    'lot_number'  => $d->lot_number,
+                    'expiry_date' => $d->expiry_date,
+                    'received_date' => now()->toDateString(),
+                    'status'      => Lot::STATUS_ACTIVE,
+                ]);
+                $lotId = $lot->id;
+
+                // Cập nhật lại detail để lưu lot_id thực
+                $d->update(['lot_id' => $lotId]);
+            }
+
+            // Tạo Serial mới nếu cần
+            // Lấy serial_number từ DB (fresh) để tránh cache
+            $d->refresh();
+            $serialNumberRaw = trim((string) ($d->serial_number ?? ''));
+
+            if (
+                in_array($tracking, [Product::TRACKING_SERIAL, Product::TRACKING_LOT_AND_SERIAL])
+                && filled($serialNumberRaw)
+            ) {
+                // Kiểm tra không phải số ID bị truyền nhầm
+                // (serial_number hợp lệ phải có ít nhất 1 ký tự không phải số,
+                //  hoặc nếu toàn số thì phải dài hơn 6 ký tự)
+                $looksLikeId = ctype_digit($serialNumberRaw) && strlen($serialNumberRaw) <= 6;
+                if ($looksLikeId) {
+                    throw new \Exception(
+                        "Số serial {$serialNumberRaw} của sản phẩm {$d->product?->name} có vẻ không hợp lệ (trông giống ID). Vui lòng kiểm tra lại phiếu."
+                    );
+                }
+
+                // Kiểm tra serial đã tồn tại chưa
+                $existingSerial = Serial::where('product_id', $d->product_id)
+                    ->where('serial_number', $serialNumberRaw)
+                    ->first();
+
+                if ($existingSerial) {
+                    $serialId = $existingSerial->id;
+                    // Cập nhật trạng thái serial thành in-stock
+                    $existingSerial->update(['status' => Serial::STATUS_INSTOCK]);
+                } else {
+                    $serial = Serial::create([
+                        'product_id'    => $d->product_id,
+                        'serial_number' => $serialNumberRaw,
+                        'lot_id'        => $lotId,
+                        'expiry_date'   => $d->expiry_date,
+                        'received_date' => now()->toDateString(),
+                        'status'        => Serial::STATUS_INSTOCK,
+                    ]);
+                    $serialId = $serial->id;
+                }
+
+                // Cập nhật lại detail
+                $d->update(['serial_id' => $serialId]);
+            }
+
+            $this->increase([
+                'product_id'       => $d->product_id,
+                'location_id'      => $d->location_id,
+                'lot_id'           => $lotId,
+                'serial_id'        => $serialId,
+                'quantity'         => (float) $d->quantity,
+                'expiry_date'      => $d->expiry_date,
+                'received_date'    => now()->toDateString(),
+                'transaction_type' => $type,
+                'reference_id'     => $transformation->id,
+                'reference_type'   => 'stock_transformation',
+                'reference_code'   => $transformation->code,
+                'note'             => "Tách/ghép: {$transformation->code} — đầu ra",
+                'created_by'       => $transformation->confirmed_by ?? Auth::id(),
+            ]);
+        }
     }
 
     // =========================================================================
