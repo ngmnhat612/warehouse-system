@@ -68,6 +68,16 @@
       </a>
     </li>
 
+    <li class="nav-item">
+      <a class="nav-link {{ request()->routeIs('transformations.*') ? 'active' : '' }}"
+         href="{{ route('transformations.index') }}">
+        <svg class="nav-icon">
+          <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-layers') }}"></use>
+        </svg>
+        Tách / Ghép hàng hóa
+      </a>
+    </li>
+
     {{-- TỒN KHO --}}
     <li class="nav-title">Tồn kho</li>
 

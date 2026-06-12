@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -17,7 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('uom_purchase_id')->nullable();
             $table->decimal('weight', 10, 3)->nullable();
             $table->decimal('volume', 10, 3)->nullable();
-            $table->string('barcode', 100)->nullable()->unique();
+            $table->string('barcode', 100)->nullable();
             $table->integer('alert_before_expiry')->nullable()->comment('Cảnh báo trước N ngày hết hạn');
             $table->tinyInteger('tracking_type')->default(1)->comment('1=None, 2=Lot, 3=Serial, 4=LotAndSerial');
             $table->tinyInteger('stock_rotation')->default(1)->comment('1=FIFO, 2=FEFO, 3=Thủ công');
@@ -29,7 +30,15 @@ return new class extends Migration
             $table->foreign('category_id')->references('id')->on('categories')->onDelete('no action');
             $table->foreign('uom_id')->references('id')->on('uoms')->onDelete('no action');
             $table->foreign('uom_purchase_id')->references('id')->on('uoms')->onDelete('no action');
+
         });
+
+        // Filtered unique index — SQL Server không cho NULL trùng trên unique index thông thường
+        DB::statement("
+            CREATE UNIQUE INDEX products_barcode_unique
+            ON products (barcode)
+            WHERE barcode IS NOT NULL
+        ");
     }
 
     public function down(): void

@@ -181,6 +181,7 @@ return new class extends Migration
             $table->string('code', 50)->unique();
             $table->tinyInteger('type')->default(1)->comment('1=Tách, 2=Ghép');
             $table->unsignedBigInteger('bom_id')->nullable();
+            $table->decimal('multiplier', 10, 3)->default(1)->after('bom_id');
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('confirmed_by')->nullable();
             $table->tinyInteger('status')->default(1);
@@ -198,11 +199,14 @@ return new class extends Migration
             $table->unsignedBigInteger('stock_transformation_id');
             $table->unsignedBigInteger('product_id');
             $table->unsignedBigInteger('lot_id')->nullable();
+            $table->string('lot_number', 100)->nullable();
             $table->unsignedBigInteger('serial_id')->nullable();
+            $table->string('serial_number', 100)->nullable();
             $table->unsignedBigInteger('location_id');
             $table->unsignedBigInteger('uom_id');
             $table->tinyInteger('direction')->comment('1=Consume, 2=Produce');
             $table->decimal('quantity', 18, 3);
+            $table->decimal('bom_qty', 15, 3)->nullable();
             $table->date('expiry_date')->nullable();
 
             $table->foreign('stock_transformation_id')->references('id')->on('stock_transformations')->onDelete('cascade');
