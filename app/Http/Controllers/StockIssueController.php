@@ -366,22 +366,51 @@ class StockIssueController extends Controller
                 foreach ($issue->details as $detail) {
                     if ($detail->quantity <= 0) continue;
 
-                    $baseParams = [
-                        'product_id'       => $detail->product_id,
-                        'location_id'      => $detail->location_id,
-                        'quantity'         => $detail->quantity,
-                        'lot_id'           => $detail->lot_id,
-                        'serial_id'        => $detail->serial_id ?? null,
-                        'transaction_type' => StockService::TYPE_ISSUE,
-                        'reference_id'     => $issue->id,
-                        'reference_type'   => 'stock_issue',
-                        'reference_code'   => $issue->code,
-                        'note'             => "Xuất kho từ phiếu {$issue->code}",
-                        'created_by'       => Auth::id(),
-                    ];
+                    // Thay vì dùng $detail->lot_id (có thể null dù stock có lot),
+                    // truy vấn trực tiếp các dòng stock đang bị giữ chỗ cho product + location này.
+                    // Thứ tự FEFO/FIFO giữ nhất quán với lúc approve.
+                    $reservedRows = Stock::where('product_id', $detail->product_id)
+                        ->where('location_id', $detail->location_id)
+                        ->where('reserved_qty', '>', 0)
+                        ->orderByRaw('
+                            CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END ASC,
+                            expiry_date ASC,
+                            received_date ASC,
+                            id ASC
+                        ')
+                        ->get();
 
-                    $this->stockService->release($baseParams);
-                    $this->stockService->decrease($baseParams);
+                    $remaining = (float) $detail->quantity;
+
+                    foreach ($reservedRows as $rStock) {
+                        if ($remaining <= 0.0001) break;
+
+                        $qty = min((float) $rStock->reserved_qty, $remaining);
+
+                        $rowParams = [
+                            'product_id'       => $rStock->product_id,
+                            'location_id'      => $rStock->location_id,
+                            'quantity'         => $qty,
+                            'lot_id'           => $rStock->lot_id,
+                            'serial_id'        => $rStock->serial_id,
+                            'transaction_type' => StockService::TYPE_ISSUE,
+                            'reference_id'     => $issue->id,
+                            'reference_type'   => 'stock_issue',
+                            'reference_code'   => $issue->code,
+                            'note'             => "Xuất kho từ phiếu {$issue->code}",
+                            'created_by'       => Auth::id(),
+                        ];
+
+                        $this->stockService->release($rowParams);
+                        $this->stockService->decrease($rowParams);
+                        $remaining -= $qty;
+                    }
+
+                    if ($remaining > 0.001) {
+                        throw new \Exception(
+                            "Không đủ hàng đã giữ chỗ để xuất dòng product_id={$detail->product_id}. Còn thiếu: {$remaining}"
+                        );
+                    }
                 }
 
                 $issue->update(['status' => 4]);
@@ -420,20 +449,42 @@ class StockIssueController extends Controller
                     foreach ($issue->details as $detail) {
                         if ($detail->quantity <= 0) continue;
 
-                    try {
-                        $this->stockService->release([
-                            'product_id'       => $detail->product_id,
-                            'location_id'      => $detail->location_id,
-                            'quantity'         => $detail->quantity,
-                            'lot_id'           => $detail->lot_id,
-                            'serial_id'        => $detail->serial_id ?? null,
-                            'transaction_type' => StockService::TYPE_ISSUE,
-                            'reference_id'     => $issue->id,
-                            'reference_type'   => 'stock_issue',
-                            'reference_code'   => $issue->code,
-                        ]);
-                    } catch (\Exception $e) {
-                        // Bỏ qua nếu stock line không còn
+                    // Giải phóng theo từng dòng stock thực tế đang được giữ chỗ
+                    $reservedRows = Stock::where('product_id', $detail->product_id)
+                        ->where('location_id', $detail->location_id)
+                        ->where('reserved_qty', '>', 0)
+                        ->orderByRaw('
+                            CASE WHEN expiry_date IS NULL THEN 1 ELSE 0 END ASC,
+                            expiry_date ASC,
+                            received_date ASC,
+                            id ASC
+                        ')
+                        ->get();
+
+                    $remaining = (float) $detail->quantity;
+
+                    foreach ($reservedRows as $rStock) {
+                        if ($remaining <= 0.0001) break;
+
+                        $qty = min((float) $rStock->reserved_qty, $remaining);
+
+                        try {
+                            $this->stockService->release([
+                                'product_id'       => $rStock->product_id,
+                                'location_id'      => $rStock->location_id,
+                                'quantity'         => $qty,
+                                'lot_id'           => $rStock->lot_id,
+                                'serial_id'        => $rStock->serial_id,
+                                'transaction_type' => StockService::TYPE_ISSUE,
+                                'reference_id'     => $issue->id,
+                                'reference_type'   => 'stock_issue',
+                                'reference_code'   => $issue->code,
+                            ]);
+                        } catch (\Exception $e) {
+                            // Bỏ qua nếu dòng stock không còn
+                        }
+
+                        $remaining -= $qty;
                     }
                 }
             }
