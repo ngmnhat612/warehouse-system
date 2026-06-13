@@ -16,13 +16,13 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
 @endphp
 
 {{-- HEADER --}}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h4 class="mb-0 fw-semibold">{{ $isEdit ? 'Sửa phiếu xuất' : 'Tạo phiếu xuất mới' }}</h4>
         <small
             class="text-body-secondary">{{ $isEdit ? $issue->code : 'Điền thông tin và thêm hàng hóa cần xuất' }}</small>
     </div>
-    <a href="{{ route('issues.index') }}" class="btn btn-outline-secondary">
+    <a href="{{ route('issues.index') }}" class="btn btn-outline-secondary btn-sm">
         <svg class="icon me-1">
             <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-arrow-left') }}"></use>
         </svg>
@@ -34,283 +34,274 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
     @csrf
     @if($isEdit) @method('PUT') @endif
 
-    <div class="row g-4">
+    {{-- ── THÔNG TIN PHIẾU (1 hàng ngang) ── --}}
+    <div class="card mb-3">
+        <div class="card-header fw-semibold py-2">
+            <svg class="icon me-1 text-primary">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-description') }}"></use>
+            </svg>
+            Thông tin phiếu
+        </div>
+        <div class="card-body py-3">
+            <div class="row g-3">
 
-        {{-- CỘT TRÁI: Thông tin phiếu --}}
-        <div class="col-lg-4">
-
-            <div class="card mb-4">
-                <div class="card-header fw-semibold">
-                    <svg class="icon me-1 text-primary">
-                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-description') }}"></use>
-                    </svg>
-                    Thông tin phiếu
+                <div class="col-md-2">
+                    <label class="form-label form-label-sm mb-1">Mã phiếu</label>
+                    <input type="text"
+                        class="form-control form-control-sm text-uppercase @error('code') is-invalid @enderror"
+                        name="code" value="{{ old('code', $issue->code ?? '') }}" placeholder="Tự sinh nếu trống"
+                        maxlength="50" {{ $isEdit ? 'readonly' : '' }}>
+                    @error('code')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
-                <div class="card-body">
 
-                    <div class="mb-3">
-                        <label class="form-label">Mã phiếu <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control text-uppercase @error('code') is-invalid @enderror"
-                            name="code" value="{{ old('code', $issue->code ?? '') }}" placeholder="VD: XK-2024-001"
-                            {{ $isEdit ? 'required readonly' : '' }} maxlength="50">
-                        @error('code') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        @if(!$isEdit)
-                        <div class="form-text">Để trống để hệ thống tự sinh mã.</div>
+                <div class="col-md-2">
+                    <label class="form-label form-label-sm mb-1">Loại xuất <span class="text-danger">*</span></label>
+                    <select class="form-select form-select-sm @error('issue_type') is-invalid @enderror"
+                        name="issue_type" id="issueType" required>
+                        <option value="1" {{ old('issue_type', $issue->issue_type ?? 1) == 1 ? 'selected' : '' }}>
+                            Sản xuất</option>
+                        <option value="2" {{ old('issue_type', $issue->issue_type ?? 1) == 2 ? 'selected' : '' }}>
+                            Bảo trì</option>
+                        <option value="3" {{ old('issue_type', $issue->issue_type ?? 1) == 3 ? 'selected' : '' }}>
+                            Mượn</option>
+                        <option value="4" {{ old('issue_type', $issue->issue_type ?? 1) == 4 ? 'selected' : '' }}>
+                            Khác</option>
+                    </select>
+                    @error('issue_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label form-label-sm mb-1">Người yêu cầu</label>
+                    <select class="form-select form-select-sm @error('requester_id') is-invalid @enderror"
+                        name="requester_id">
+                        <option value="">— Chọn —</option>
+                        @foreach ($users as $user)
+                        <option value="{{ $user->id }}"
+                            {{ old('requester_id', $issue->requester_id ?? '') == $user->id ? 'selected' : '' }}>
+                            {{ $user->name }}
+                        </option>
+                        @endforeach
+                    </select>
+                    @error('requester_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label form-label-sm mb-1">Số tham chiếu</label>
+                    <input type="text" class="form-control form-control-sm @error('reference_no') is-invalid @enderror"
+                        name="reference_no" value="{{ old('reference_no', $issue->reference_no ?? '') }}"
+                        placeholder="Số lệnh SX / công việc" maxlength="100">
+                    @error('reference_no')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label form-label-sm mb-1">Ngày xuất <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control form-control-sm @error('issue_date') is-invalid @enderror"
+                        name="issue_date"
+                        value="{{ old('issue_date', isset($issue->issue_date) ? \Carbon\Carbon::parse($issue->issue_date)->format('Y-m-d') : date('Y-m-d')) }}"
+                        required>
+                    @error('issue_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
+                {{-- Hạn trả — chỉ hiện khi Mượn --}}
+                <div class="col-md-2" id="returnDateGroup"
+                    style="{{ old('issue_type', $issue->issue_type ?? 1) == 3 ? '' : 'display:none' }}">
+                    <label class="form-label form-label-sm mb-1">Hạn trả hàng</label>
+                    <input type="date"
+                        class="form-control form-control-sm @error('expected_return_date') is-invalid @enderror"
+                        name="expected_return_date"
+                        value="{{ old('expected_return_date', isset($issue->expected_return_date) ? \Carbon\Carbon::parse($issue->expected_return_date)->format('Y-m-d') : '') }}">
+                    @error('expected_return_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+
+                @if($isEdit)
+                <div class="col-md-2">
+                    <label class="form-label form-label-sm mb-1">Trạng thái</label>
+                    <select class="form-select form-select-sm" name="status">
+                        <option value="1" {{ ($issue->status ?? 1) == 1 ? 'selected' : '' }}>Nháp</option>
+                        <option value="2" {{ ($issue->status ?? 1) == 2 ? 'selected' : '' }}>Chờ duyệt</option>
+                        <option value="3" {{ ($issue->status ?? 1) == 3 ? 'selected' : '' }}>Đã duyệt</option>
+                        <option value="4" {{ ($issue->status ?? 1) == 4 ? 'selected' : '' }}>Hoàn thành</option>
+                        <option value="5" {{ ($issue->status ?? 1) == 5 ? 'selected' : '' }}>Đã hủy</option>
+                    </select>
+                </div>
+                @endif
+
+                <div class="col-md-2">
+                    <label class="form-label form-label-sm mb-1">Ghi chú</label>
+                    <input type="text" class="form-control form-control-sm" name="note"
+                        value="{{ old('note', $issue->note ?? '') }}" placeholder="Ghi chú nếu có..." maxlength="500">
+                </div>
+
+            </div>{{-- end row g-3 --}}
+        </div>{{-- end card-body --}}
+    </div>{{-- end card --}}
+
+    {{-- ── CHI TIẾT HÀNG HÓA ── --}}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <span class="fw-semibold">
+                <svg class="icon me-1 text-primary">
+                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use>
+                </svg>
+                Chi tiết hàng hóa
+            </span>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow()">
+                <svg class="icon me-1">
+                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
+                </svg>
+                Thêm dòng
+            </button>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" id="detailTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:36px"></th>
+                            <th>Hàng hóa <span class="text-danger">*</span></th>
+                            <th style="width:100px">ĐVT</th>
+                            <th style="width:110px">Số lượng <span class="text-danger">*</span></th>
+                            <th style="width:130px">Vị trí kho <span class="text-danger">*</span></th>
+                            <th style="width:110px">Số Lot / Batch</th>
+                            <th style="width:120px">Số Serial</th>
+                            <th style="width:90px">Tồn hiện</th>
+                            <th style="width:200px">Ghi chú</th>
+                            <th style="width:36px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailBody">
+
+                        @if($isEdit && $issue->details->count())
+                        @foreach($issue->details as $i => $detail)
+                        <tr class="existing-row" data-current-location="{{ $detail->location_id }}"
+                            data-current-lot-id="{{ $detail->lot_id ?? '' }}"
+                            data-current-lot-number="{{ $detail->lot?->lot_number ?? '' }}"
+                            data-current-serial-id="{{ $detail->serial_id ?? '' }}"
+                            data-current-serial-number="{{ $detail->serial?->serial_number ?? '' }}">
+                            <td class="text-center text-body-secondary small">{{ $i + 1 }}</td>
+                            <td>
+                                <select class="form-select form-select-sm product-select"
+                                    name="details[{{ $i }}][product_id]" required onchange="onProductChange(this)">
+                                    <option value="">— Chọn hàng hóa —</option>
+                                    @foreach($products as $p)
+                                    <option value="{{ $p->id }}" data-uom="{{ $p->uom?->name }}"
+                                        data-uom-id="{{ $p->uom_id }}" data-stock="{{ $p->total_stock }}"
+                                        data-tracking="{{ $p->tracking_type }}"
+                                        {{ $detail->product_id == $p->id ? 'selected' : '' }}>
+                                        {{ $p->code }} — {{ $p->name }}
+                                    </option>
+                                    @endforeach
+                                </select>
+                            </td>
+                            <td>
+                                <input type="hidden" name="details[{{ $i }}][uom_id]" class="uom-hidden"
+                                    value="{{ $detail->uom_id }}">
+                                <span
+                                    class="uom-label text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</span>
+                            </td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm text-end qty-input"
+                                    name="details[{{ $i }}][quantity]" value="{{ $detail->quantity }}" min="0.001"
+                                    step="0.001" required oninput="handleQtyInput(this)">
+                            </td>
+                            <td>
+                                <select class="form-select form-select-sm location-select"
+                                    name="details[{{ $i }}][location_id]" required onchange="onLocationChange(this)"
+                                    disabled>
+                                    <option value="{{ $detail->location_id }}">⏳ Đang tải...</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="hidden" name="details[{{ $i }}][lot_id]" class="lot-id-hidden"
+                                    value="{{ $detail->lot_id ?? '' }}">
+                                <select class="form-select form-select-sm lot-select" disabled>
+                                    <option value="">— Đang tải —</option>
+                                </select>
+                            </td>
+                            <td>
+                                <input type="hidden" name="details[{{ $i }}][serial_id]" class="serial-id-hidden"
+                                    value="{{ $detail->serial_id ?? '' }}">
+                                <select class="form-select form-select-sm serial-select" disabled>
+                                    <option value="">— Đang tải —</option>
+                                </select>
+                            </td>
+                            <td class="text-end small stock-display text-body-secondary"
+                                data-stock="{{ $detail->product?->total_stock ?? 0 }}">
+                                {{ number_format($detail->product?->total_stock ?? 0, 0) }}
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm" name="details[{{ $i }}][note]"
+                                    value="{{ $detail->note ?? '' }}" placeholder="Ghi chú..." maxlength="200">
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-danger p-1"
+                                    onclick="removeRow(this)" title="Xóa dòng">
+                                    <svg class="icon">
+                                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}">
+                                        </use>
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                        @endforeach
                         @endif
-                    </div>
 
-                    <div class="mb-3">
-                        <label class="form-label">Loại xuất <span class="text-danger">*</span></label>
-                        <select class="form-select @error('issue_type') is-invalid @enderror" name="issue_type"
-                            id="issueType" required>
-                            <option value="1" {{ old('issue_type', $issue->issue_type ?? 1) == 1 ? 'selected' : '' }}>
-                                Sản xuất</option>
-                            <option value="2" {{ old('issue_type', $issue->issue_type ?? 1) == 2 ? 'selected' : '' }}>
-                                Bảo trì</option>
-                            <option value="3" {{ old('issue_type', $issue->issue_type ?? 1) == 3 ? 'selected' : '' }}>
-                                Mượn</option>
-                            <option value="4" {{ old('issue_type', $issue->issue_type ?? 1) == 4 ? 'selected' : '' }}>
-                                Khác</option>
-                        </select>
-                        @error('issue_type') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Người yêu cầu</label>
-                        <select class="form-select @error('requester_id') is-invalid @enderror" name="requester_id">
-                            <option value="">— Chọn người yêu cầu —</option>
-                            @foreach ($users as $user)
-                            <option value="{{ $user->id }}"
-                                {{ old('requester_id', $issue->requester_id ?? '') == $user->id ? 'selected' : '' }}>
-                                {{ $user->name }}
-                            </option>
-                            @endforeach
-                        </select>
-                        @error('requester_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Số tham chiếu</label>
-                        <input type="text" class="form-control @error('reference_no') is-invalid @enderror"
-                            name="reference_no" value="{{ old('reference_no', $issue->reference_no ?? '') }}"
-                            placeholder="Số lệnh SX / công việc" maxlength="100">
-                        @error('reference_no') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Ngày xuất <span class="text-danger">*</span></label>
-                        <input type="date" class="form-control @error('issue_date') is-invalid @enderror"
-                            name="issue_date"
-                            value="{{ old('issue_date', isset($issue->issue_date) ? \Carbon\Carbon::parse($issue->issue_date)->format('Y-m-d') : date('Y-m-d')) }}"
-                            required>
-                        @error('issue_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                    </div>
-
-                    {{-- Hạn trả — chỉ hiện khi Mượn --}}
-                    <div class="mb-3" id="returnDateGroup"
-                        style="{{ old('issue_type', $issue->issue_type ?? 1) == 3 ? '' : 'display:none' }}">
-                        <label class="form-label">Hạn trả hàng</label>
-                        <input type="date" class="form-control @error('expected_return_date') is-invalid @enderror"
-                            name="expected_return_date"
-                            value="{{ old('expected_return_date', isset($issue->expected_return_date) ? \Carbon\Carbon::parse($issue->expected_return_date)->format('Y-m-d') : '') }}">
-                        @error('expected_return_date') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        <div class="form-text">Chỉ áp dụng cho loại xuất Mượn.</div>
-                    </div>
-
-                    @if($isEdit)
-                    <div class="mb-3">
-                        <label class="form-label">Trạng thái</label>
-                        <select class="form-select" name="status">
-                            <option value="1" {{ ($issue->status ?? 1) == 1 ? 'selected' : '' }}>Nháp</option>
-                            <option value="2" {{ ($issue->status ?? 1) == 2 ? 'selected' : '' }}>Chờ duyệt</option>
-                            <option value="3" {{ ($issue->status ?? 1) == 3 ? 'selected' : '' }}>Đã duyệt</option>
-                            <option value="4" {{ ($issue->status ?? 1) == 4 ? 'selected' : '' }}>Hoàn thành</option>
-                            <option value="5" {{ ($issue->status ?? 1) == 5 ? 'selected' : '' }}>Đã hủy</option>
-                        </select>
-                    </div>
-                    @endif
-
-                    <div class="mb-0">
-                        <label class="form-label">Ghi chú</label>
-                        <textarea class="form-control" name="note" rows="3"
-                            placeholder="Ghi chú thêm nếu có...">{{ old('note', $issue->note ?? '') }}</textarea>
-                    </div>
-
-                </div>
+                    </tbody>
+                </table>
             </div>
 
-            {{-- Nút lưu --}}
-            <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary btn-lg" name="action" value="save">
-                    <svg class="icon me-1">
-                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-save') }}"></use>
-                    </svg>
-                    {{ $isEdit ? 'Cập nhật phiếu' : 'Lưu phiếu xuất' }}
-                </button>
-                @if(!$isEdit)
-                <button type="submit" class="btn btn-outline-primary" name="action" value="save_and_new">
+            <div id="emptyDetail" class="text-center text-body-secondary py-5"
+                style="{{ ($isEdit && $issue->details->count()) ? 'display:none' : '' }}">
+                <svg class="icon icon-3xl d-block mx-auto mb-2 opacity-25">
+                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use>
+                </svg>
+                Chưa có hàng hóa nào.<br>
+                <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addRow()">
                     <svg class="icon me-1">
                         <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
                     </svg>
-                    Lưu & tạo phiếu mới
+                    Thêm dòng đầu tiên
                 </button>
-                @endif
-                <a href="{{ route('issues.index') }}" class="btn btn-outline-secondary">Hủy</a>
-            </div>
-
-        </div>
-
-        {{-- CỘT PHẢI: Chi tiết hàng hóa --}}
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span class="fw-semibold">
-                        <svg class="icon me-1 text-primary">
-                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use>
-                        </svg>
-                        Chi tiết hàng hóa
-                    </span>
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addRow()">
-                        <svg class="icon me-1">
-                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
-                        </svg>
-                        Thêm dòng
-                    </button>
-                </div>
-
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table align-middle mb-0" id="detailTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th style="width:36px"></th>
-                                    <th>Hàng hóa <span class="text-danger">*</span></th>
-                                    <th style="width:100px">ĐVT</th>
-                                    <th style="width:110px">Số lượng <span class="text-danger">*</span></th>
-                                    <th style="width:130px">Vị trí kho <span class="text-danger">*</span></th>
-                                    <th style="width:110px">Số Lot / Batch</th>
-                                    <th style="width:120px">Số Serial</th>
-                                    <th style="width:90px">Tồn hiện</th>
-                                    <th style="width:200px">Ghi chú</th>
-                                    <th style="width:36px"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="detailBody">
-
-                                @if($isEdit && $issue->details->count())
-                                @foreach($issue->details as $i => $detail)
-                                <tr class="existing-row" data-current-location="{{ $detail->location_id }}"
-                                    data-current-lot-id="{{ $detail->lot_id ?? '' }}"
-                                    data-current-lot-number="{{ $detail->lot?->lot_number ?? '' }}"
-                                    data-current-serial-id="{{ $detail->serial_id ?? '' }}"
-                                    data-current-serial-number="{{ $detail->serial?->serial_number ?? '' }}">
-                                    <td class="text-center text-body-secondary small">{{ $i + 1 }}</td>
-                                    <td>
-                                        <select class="form-select form-select-sm product-select"
-                                            name="details[{{ $i }}][product_id]" required
-                                            onchange="onProductChange(this)">
-                                            <option value="">— Chọn hàng hóa —</option>
-                                            @foreach($products as $p)
-                                            <option value="{{ $p->id }}" data-uom="{{ $p->uom?->name }}"
-                                                data-uom-id="{{ $p->uom_id }}" data-stock="{{ $p->total_stock }}"
-                                                data-tracking="{{ $p->tracking_type }}"
-                                                {{ $detail->product_id == $p->id ? 'selected' : '' }}>
-                                                {{ $p->code }} — {{ $p->name }}
-                                            </option>
-                                            @endforeach
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <input type="hidden" name="details[{{ $i }}][uom_id]" class="uom-hidden"
-                                            value="{{ $detail->uom_id }}">
-                                        <span
-                                            class="uom-label text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</span>
-                                    </td>
-                                    <td>
-                                        <input type="number" class="form-control form-control-sm text-end qty-input"
-                                            name="details[{{ $i }}][quantity]" value="{{ $detail->quantity }}"
-                                            min="0.001" step="0.001" required oninput="handleQtyInput(this)">
-                                    </td>
-                                    <td>
-                                        <select class="form-select form-select-sm location-select"
-                                            name="details[{{ $i }}][location_id]" required
-                                            onchange="onLocationChange(this)" disabled>
-                                            <option value="{{ $detail->location_id }}">⏳ Đang tải...</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <input type="hidden" name="details[{{ $i }}][lot_id]" class="lot-id-hidden"
-                                            value="{{ $detail->lot_id ?? '' }}">
-                                        <select class="form-select form-select-sm lot-select" disabled>
-                                            <option value="">— Đang tải —</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <input type="hidden" name="details[{{ $i }}][serial_id]"
-                                            class="serial-id-hidden" value="{{ $detail->serial_id ?? '' }}">
-                                        <select class="form-select form-select-sm serial-select" disabled>
-                                            <option value="">— Đang tải —</option>
-                                        </select>
-                                    </td>
-                                    <td class="text-end small stock-display text-body-secondary"
-                                        data-stock="{{ $detail->product?->total_stock ?? 0 }}">
-                                        {{ number_format($detail->product?->total_stock ?? 0, 0) }}
-                                    </td>
-                                    <td>
-                                        <input type="text" class="form-control form-control-sm"
-                                            name="details[{{ $i }}][note]" value="{{ $detail->note ?? '' }}"
-                                            placeholder="Ghi chú..." maxlength="200">
-                                    </td>
-                                    <td>
-                                        <button type="button" class="btn btn-sm btn-outline-danger p-1"
-                                            onclick="removeRow(this)" title="Xóa dòng">
-                                            <svg class="icon">
-                                                <use
-                                                    xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}">
-                                                </use>
-                                            </svg>
-                                        </button>
-                                    </td>
-                                </tr>
-                                @endforeach
-                                @endif
-
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div id="emptyDetail" class="text-center text-body-secondary py-5"
-                        style="{{ ($isEdit && $issue->details->count()) ? 'display:none' : '' }}">
-                        <svg class="icon icon-3xl d-block mx-auto mb-2 opacity-25">
-                            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use>
-                        </svg>
-                        Chưa có hàng hóa nào.<br>
-                        <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addRow()">
-                            <svg class="icon me-1">
-                                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
-                            </svg>
-                            Thêm dòng đầu tiên
-                        </button>
-                    </div>
-                </div>
-
-                <div class="card-footer text-body-secondary small d-flex justify-content-between">
-                    <span>Tổng số dòng: <strong
-                            id="rowCount">{{ $isEdit ? $issue->details->count() : 0 }}</strong></span>
-                    <span>Tổng SL xuất: <strong id="totalQty">0</strong></span>
-                </div>
-            </div>
-
-            {{-- Cảnh báo tồn kho --}}
-            <div class="alert alert-warning d-none mt-3" id="stockWarning">
-                <svg class="icon me-1">
-                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-warning') }}"></use>
-                </svg>
-                <strong>Cảnh báo:</strong> Một số dòng có số lượng xuất vượt quá tồn kho hiện tại.
             </div>
         </div>
+
+        <div class="card-footer text-body-secondary small d-flex justify-content-between">
+            <span>Tổng số dòng: <strong id="rowCount">{{ $isEdit ? $issue->details->count() : 0 }}</strong></span>
+            <span>Tổng SL xuất: <strong id="totalQty">0</strong></span>
+        </div>
+    </div>
+
+    {{-- Cảnh báo tồn kho --}}
+    <div class="alert alert-warning d-none mt-3" id="stockWarning">
+        <svg class="icon me-1">
+            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-warning') }}"></use>
+        </svg>
+        <strong>Cảnh báo:</strong> Một số dòng có số lượng xuất vượt quá tồn kho hiện tại.
+    </div>
+    </div>
 
     </div>
+
+    {{-- ── NÚT LƯU ── --}}
+    <div class="d-flex gap-2 justify-content-end mt-3">
+        <a href="{{ route('issues.index') }}" class="btn btn-outline-secondary">Hủy</a>
+        @if(!$isEdit)
+        <button type="submit" class="btn btn-outline-primary" name="action" value="save_and_new">
+            <svg class="icon me-1">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-plus') }}"></use>
+            </svg>
+            Lưu & Tạo phiếu mới
+        </button>
+        @endif
+        <button type="submit" class="btn btn-primary" name="action" value="save">
+            <svg class="icon me-1">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-save') }}"></use>
+            </svg>
+            {{ $isEdit ? 'Cập nhật phiếu' : 'Lưu phiếu xuất' }}
+        </button>
+    </div>
+
 </form>
 
 @endsection
