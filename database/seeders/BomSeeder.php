@@ -67,49 +67,55 @@ class BomSeeder extends Seeder
             ]);
         }
 
-        // ── BOM-002: Tách (Disassemble) — Máy bơm nước LVP-50 → Động cơ + Cáp điện ──
-        $bomCode2 = 'BOM-002';
-        $bomId2 = DB::table('boms')->where('code', $bomCode2)->value('id');
+        // ── BOM-002: Tách (Disassemble) — Biến tần Mitsubishi → Nguồn tổ ong + Cáp mạng Cat6 ──
+        $sp008 = DB::table('products')->where('code', 'SP008')->value('id'); // Biến tần Mitsubishi FR-A840
+        $sp018 = DB::table('products')->where('code', 'SP018')->value('id'); // Nguồn tổ ong Meanwell
+        $sp028 = DB::table('products')->where('code', 'SP028')->value('id'); // Cáp mạng Cat6
 
-        if (!$bomId2) {
-            $bomId2 = DB::table('boms')->insertGetId([
-                'code'       => $bomCode2,
-                'name'       => 'Tách rã Máy bơm nước LVP-50',
-                'type'       => 1, // Disassemble — Tách
-                'note'       => 'Máy bơm nước → Động cơ điện + Cáp điện (thu hồi linh kiện)',
-                'status'     => 1,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
+        if ($sp008 && $sp018 && $sp028) {
+            $bomCode2 = 'BOM-002';
+            $bomId2 = DB::table('boms')->where('code', $bomCode2)->value('id');
 
-            DB::table('bom_details')->insert([
-                // Consume — đầu vào (hàng cần tách)
-                [
-                    'bom_id'     => $bomId2,
-                    'product_id' => $sp001,
-                    'line_type'  => 1, // Consume
-                    'qty'        => 1.000,
-                    'uom_id'     => $uomCai,
-                    'note'       => 'Máy bơm nước LVP-50 cần tách rã',
-                ],
-                // Produce — đầu ra (linh kiện thu hồi)
-                [
-                    'bom_id'     => $bomId2,
-                    'product_id' => $sp002,
-                    'line_type'  => 2, // Produce
-                    'qty'        => 1.000,
-                    'uom_id'     => $uomCai,
-                    'note'       => 'Động cơ điện 3 pha 5.5kW thu hồi',
-                ],
-                [
-                    'bom_id'     => $bomId2,
-                    'product_id' => $sp005,
-                    'line_type'  => 2, // Produce
-                    'qty'        => 2.500,
-                    'uom_id'     => $uomMet,
-                    'note'       => 'Cáp điện CVV 2x1.5mm² thu hồi (hao hụt 0.5m)',
-                ],
-            ]);
+            if (!$bomId2) {
+                $bomId2 = DB::table('boms')->insertGetId([
+                    'code'       => $bomCode2,
+                    'name'       => 'Tách rã Biến tần Mitsubishi FR-A840',
+                    'type'       => 1, // Disassemble — Tách
+                    'note'       => 'Biến tần → Nguồn tổ ong + Cáp mạng (thu hồi linh kiện)',
+                    'status'     => 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+
+                DB::table('bom_details')->insert([
+                    // Consume — đầu vào (hàng cần tách)
+                    [
+                        'bom_id'     => $bomId2,
+                        'product_id' => $sp008,
+                        'line_type'  => 1, // Consume
+                        'qty'        => 1.000,
+                        'uom_id'     => $uomCai,
+                        'note'       => 'Biến tần Mitsubishi FR-A840 cần tách rã',
+                    ],
+                    // Produce — đầu ra (linh kiện thu hồi)
+                    [
+                        'bom_id'     => $bomId2,
+                        'product_id' => $sp018,
+                        'line_type'  => 2, // Produce
+                        'qty'        => 1.000,
+                        'uom_id'     => $uomCai,
+                        'note'       => 'Nguồn tổ ong Meanwell thu hồi',
+                    ],
+                    [
+                        'bom_id'     => $bomId2,
+                        'product_id' => $sp028,
+                        'line_type'  => 2, // Produce
+                        'qty'        => 1.000,
+                        'uom_id'     => $uomMet,
+                        'note'       => 'Cáp mạng Cat6 thu hồi',
+                    ],
+                ]);
+            }
         }
     }
 }

@@ -46,7 +46,10 @@ class DatabaseSeeder extends Seeder
             // 10. BOM mẫu (phải sau Product + Uom)
             BomSeeder::class,
 
-            // 11. Reorder rule
+            // 11. Putaway rule (phải sau Category + Location)
+            PutawayRuleSeeder::class,
+
+            // 12. Reorder rule
             ReorderRuleSeeder::class,
         ]);
     }
