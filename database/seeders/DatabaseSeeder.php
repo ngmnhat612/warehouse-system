@@ -40,10 +40,13 @@ class DatabaseSeeder extends Seeder
             // 8. Lot + Serial (phải sau Product + Supplier)
             LotSerialSeeder::class,
 
-            // 9. Tồn kho ban đầu (phải sau tất cả phía trên)
+           // 9. Tồn kho ban đầu (phải sau tất cả phía trên)
             StockSeeder::class,
 
-            // 10. Reorder rule
+            // 10. BOM mẫu (phải sau Product + Uom)
+            BomSeeder::class,
+
+            // 11. Reorder rule
             ReorderRuleSeeder::class,
         ]);
     }
