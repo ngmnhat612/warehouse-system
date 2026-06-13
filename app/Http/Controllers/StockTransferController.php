@@ -493,10 +493,18 @@ class StockTransferController extends Controller
     {
         $errors = [];
 
-        // Gom nhóm SL theo (product_id, from_location_id, lot_id)
-        // Dùng array key phức hợp để tránh lỗi explode khi lot_id = null
+        // Gom nhóm SL theo (product_id, from_location_id, lot_id) — CHỈ cho hàng không phải serial
         $needed = [];
+        // Đếm số serial cần chuyển theo (product_id, from_location_id)
+        $serialNeeded = [];
+
         foreach ($transfer->details as $detail) {
+            if ($detail->serial_id) {
+                $key = $detail->product_id . '|' . $detail->from_location_id;
+                $serialNeeded[$key] = ($serialNeeded[$key] ?? 0) + (float) $detail->quantity;
+                continue;
+            }
+
             $key = $detail->product_id . '|' . $detail->from_location_id . '|' . ($detail->lot_id ?? '');
             $needed[$key] = ($needed[$key] ?? 0) + (float) $detail->quantity;
         }
@@ -505,12 +513,33 @@ class StockTransferController extends Controller
             [$productId, $locationId, $lotId] = explode('|', $key);
             $lotId = $lotId !== '' ? (int) $lotId : null;
 
-            // Dùng getAvailableQty() của StockService — đã được kiểm chứng đúng
             $available = $this->stockService->getAvailableQty(
                 (int) $productId,
                 (int) $locationId,
                 $lotId
             );
+
+            if ($available < $qty) {
+                $product  = Product::find($productId);
+                $location = Location::find($locationId);
+                $errors[] = sprintf(
+                    '%s tại %s: cần %.3f, khả dụng %.3f',
+                    $product?->name ?? "ID {$productId}",
+                    $location?->code ?? "Loc {$locationId}",
+                    $qty,
+                    $available
+                );
+            }
+        }
+
+        foreach ($serialNeeded as $key => $qty) {
+            [$productId, $locationId] = explode('|', $key);
+
+            $available = Stock::where('product_id', (int) $productId)
+                ->where('location_id', (int) $locationId)
+                ->whereNotNull('serial_id')
+                ->whereRaw('quantity - reserved_qty > 0')
+                ->count();
 
             if ($available < $qty) {
                 $product  = Product::find($productId);
@@ -536,16 +565,27 @@ class StockTransferController extends Controller
     {
         $warnings = [];
 
-        // Gom nhóm SL theo (product_id, from_location_id, lot_id)
+        // Gom nhóm SL theo (product_id, from_location_id, lot_id) — CHỈ cho hàng không phải serial
         $needed = [];
+        // Đếm số serial cần chuyển theo (product_id, from_location_id)
+        $serialNeeded = [];
+
         foreach ($details as $row) {
             if (empty($row['product_id']) || empty($row['quantity']) || empty($row['from_location_id'])) {
                 continue;
             }
+
+            if (!empty($row['serial_id'])) {
+                $key = $row['product_id'] . '|' . $row['from_location_id'];
+                $serialNeeded[$key] = ($serialNeeded[$key] ?? 0) + (float) $row['quantity'];
+                continue;
+            }
+
             $key = $row['product_id'] . '|' . $row['from_location_id'] . '|' . ($row['lot_id'] ?? '');
             $needed[$key] = ($needed[$key] ?? 0) + (float) $row['quantity'];
         }
 
+        // Kiểm tra hàng lot / plain (logic cũ)
         foreach ($needed as $key => $qty) {
             [$productId, $locationId, $lotId] = explode('|', $key);
             $lotId = $lotId !== '' ? (int) $lotId : null;
@@ -555,6 +595,29 @@ class StockTransferController extends Controller
                 (int) $locationId,
                 $lotId
             );
+
+            if ($available < $qty) {
+                $product  = Product::find($productId);
+                $location = Location::find($locationId);
+                $warnings[] = sprintf(
+                    '%s tại %s: cần %.3f, khả dụng %.3f',
+                    $product?->name ?? "ID {$productId}",
+                    $location?->code ?? "Loc {$locationId}",
+                    $qty,
+                    $available
+                );
+            }
+        }
+
+        // Kiểm tra hàng serial: đếm số serial khả dụng (quantity - reserved_qty > 0) tại vị trí
+        foreach ($serialNeeded as $key => $qty) {
+            [$productId, $locationId] = explode('|', $key);
+
+            $available = Stock::where('product_id', (int) $productId)
+                ->where('location_id', (int) $locationId)
+                ->whereNotNull('serial_id')
+                ->whereRaw('quantity - reserved_qty > 0')
+                ->count();
 
             if ($available < $qty) {
                 $product  = Product::find($productId);
