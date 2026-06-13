@@ -101,7 +101,7 @@
             </select>
             <select class="form-select" name="status" style="width:140px">
                 <option value="">Tất cả trạng thái</option>
-                <option value="1" {{ request('status') == '1' ? 'selected' : '' }}>Draft</option>
+                <option value="1" {{ request('status') == '1' ? 'selected' : '' }}>Nháp</option>
                 <option value="2" {{ request('status') == '2' ? 'selected' : '' }}>Chờ duyệt</option>
                 <option value="3" {{ request('status') == '3' ? 'selected' : '' }}>Đã duyệt</option>
                 <option value="4" {{ request('status') == '4' ? 'selected' : '' }}>Hoàn thành</option>
@@ -140,7 +140,7 @@
                     @forelse ($receipts as $index => $receipt)
                     @php
                     $statusMap = [
-                    1 => ['label' => 'Draft', 'color' => 'secondary'],
+                    1 => ['label' => 'Nháp', 'color' => 'secondary'],
                     2 => ['label' => 'Chờ duyệt', 'color' => 'warning'],
                     3 => ['label' => 'Đã duyệt', 'color' => 'info'],
                     4 => ['label' => 'Hoàn thành', 'color' => 'success'],

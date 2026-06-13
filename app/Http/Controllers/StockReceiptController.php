@@ -121,13 +121,30 @@ class StockReceiptController extends Controller
         $receipt->load([
             'supplier', 'createdBy', 'confirmedBy',
             'details.product.uom',
+            'details.product.category',
             'details.location',
             'details.lot',
             'details.serial',
             'details.uom',
         ]);
 
-        return view('receipts.show', compact('receipt'));
+        // Tính gợi ý putaway cho các dòng chưa có vị trí (chỉ cần khi status = APPROVED)
+        $putawaySuggestions = collect();
+        if ((int) $receipt->status === StockReceipt::STATUS_APPROVED) {
+            foreach ($receipt->details as $detail) {
+                if (! $detail->location_id && $detail->product) {
+                    $locationId = $this->stockService->suggestPutawayLocation(
+                        $detail->product_id,
+                        $detail->product->category_id ?? 0
+                    );
+                    if ($locationId) {
+                        $putawaySuggestions[$detail->id] = Location::find($locationId);
+                    }
+                }
+            }
+        }
+
+        return view('receipts.show', compact('receipt', 'putawaySuggestions'));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -464,10 +481,7 @@ class StockReceiptController extends Controller
             $lotId       = null;
             $serialId    = null;
             $lotValue    = trim($row['lot_number'] ?? '');
-            // tracking=3: field chung là lot_number; tracking=4: có serial_number riêng
-            $serialValue = $tracking === Product::TRACKING_SERIAL
-                ? $lotValue
-                : trim($row['serial_number'] ?? '');
+            $serialValue = trim($row['serial_number'] ?? '');
 
             // ── Tạo/tìm Lot (tracking 2 và 4) ────────────────────────────────
             if ($lotValue && in_array($tracking, [
@@ -560,7 +574,7 @@ class StockReceiptController extends Controller
             $line     = $i + 1;
 
             $lotValue    = trim($row['lot_number'] ?? '');
-            $serialValue = trim($row['serial_number'] ?? $row['lot_number'] ?? ''); // ← fallback
+            $serialValue = trim($row['serial_number'] ?? '');
 
             if ($tracking === Product::TRACKING_LOT && $lotValue === '') {
                 $errors["details.{$i}.lot_number"] =
@@ -568,7 +582,7 @@ class StockReceiptController extends Controller
             }
 
             if ($tracking === Product::TRACKING_SERIAL && $serialValue === '') {
-                $errors["details.{$i}.lot_number"] = // ← trỏ về lot_number để hiện lỗi đúng ô
+                $errors["details.{$i}.lot_number"] =
                     "Dòng {$line}: Hàng quản lý theo Serial — vui lòng nhập Mã Serial.";
             }
 
@@ -581,6 +595,25 @@ class StockReceiptController extends Controller
                     $errors["details.{$i}.serial_number"] =
                         "Dòng {$line}: Hàng quản lý theo Lô+Serial — vui lòng nhập Mã Serial.";
                 }
+            }
+        }
+
+        // Kiểm tra serial trùng trong cùng phiếu (theo product_id)
+        $serialSeen = []; // [ product_id => [ serial_number => line ] ]
+        foreach ($details as $i => $row) {
+            if (empty($row['product_id'])) continue;
+            $serialValue = trim($row['serial_number'] ?? '');
+            if ($serialValue === '') continue;
+
+            $productId = $row['product_id'];
+            $line      = $i + 1;
+
+            if (isset($serialSeen[$productId][$serialValue])) {
+                $firstLine = $serialSeen[$productId][$serialValue];
+                $errors["details.{$i}.serial_number"] =
+                    "Dòng {$line}: Số Serial \"{$serialValue}\" đã nhập ở dòng {$firstLine} (cùng sản phẩm).";
+            } else {
+                $serialSeen[$productId][$serialValue] = $line;
             }
         }
 

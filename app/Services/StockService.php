@@ -365,11 +365,14 @@ class StockService
      */
     public function findStock(array $params): Stock
     {
-        $stock = Stock::where('product_id', $params['product_id'])
-            ->where('location_id', $params['location_id'])
-            ->where('lot_id', $params['lot_id'] ?? null)
-            ->where('serial_id', $params['serial_id'] ?? null)
-            ->lockForUpdate()   // UPDLOCK — tránh race condition
+        $lotId    = isset($params['lot_id'])    ? (int) $params['lot_id']    : null;
+        $serialId = isset($params['serial_id']) ? (int) $params['serial_id'] : null;
+
+        $stock = Stock::where('product_id', (int) $params['product_id'])
+            ->where('location_id', (int) $params['location_id'])
+            ->when($lotId    !== null, fn($q) => $q->where('lot_id', $lotId),       fn($q) => $q->whereNull('lot_id'))
+            ->when($serialId !== null, fn($q) => $q->where('serial_id', $serialId), fn($q) => $q->whereNull('serial_id'))
+            ->lockForUpdate()
             ->first();
 
         if (! $stock) {
@@ -377,8 +380,8 @@ class StockService
                 "Không tìm thấy dòng tồn kho: " .
                 "product_id={$params['product_id']}, " .
                 "location_id={$params['location_id']}, " .
-                "lot_id=" . ($params['lot_id'] ?? 'null') . ", " .
-                "serial_id=" . ($params['serial_id'] ?? 'null')
+                "lot_id=" . ($lotId ?? 'null') . ", " .
+                "serial_id=" . ($serialId ?? 'null')
             );
         }
 
@@ -390,31 +393,40 @@ class StockService
      */
     public function findOrCreateStock(array $params): Stock
     {
+        $lotId    = isset($params['lot_id'])    ? (int) $params['lot_id']    : null;
+        $serialId = isset($params['serial_id']) ? (int) $params['serial_id'] : null;
+
         try {
-            return Stock::firstOrCreate(
-                [
-                    'product_id'  => $params['product_id'],
-                    'location_id' => $params['location_id'],
-                    'lot_id'      => $params['lot_id'] ?? null,
-                    'serial_id'   => $params['serial_id'] ?? null,
-                ],
-                [
-                    'quantity'         => 0,
-                    'reserved_qty'     => 0,
-                    'supplier_id'      => $params['supplier_id'] ?? null,
-                    'manufacture_date' => $params['manufacture_date'] ?? null,
-                    'received_date'    => $params['received_date'] ?? now()->toDateString(),
-                    'expiry_date'      => $params['expiry_date'] ?? null,
-                    'status'           => self::STOCK_STATUS_NORMAL,
-                    'updated_at'       => now(),
-                ]
-            );
+            $stock = Stock::where('product_id', (int) $params['product_id'])
+                ->where('location_id', (int) $params['location_id'])
+                ->when($lotId    !== null, fn($q) => $q->where('lot_id', $lotId),       fn($q) => $q->whereNull('lot_id'))
+                ->when($serialId !== null, fn($q) => $q->where('serial_id', $serialId), fn($q) => $q->whereNull('serial_id'))
+                ->lockForUpdate()
+                ->first();
+
+            if ($stock) {
+                return $stock;
+            }
+
+            return Stock::create([
+                'product_id'       => (int) $params['product_id'],
+                'location_id'      => (int) $params['location_id'],
+                'lot_id'           => $lotId,
+                'serial_id'        => $serialId,
+                'quantity'         => 0,
+                'reserved_qty'     => 0,
+                'supplier_id'      => $params['supplier_id'] ?? null,
+                'manufacture_date' => $params['manufacture_date'] ?? null,
+                'received_date'    => $params['received_date'] ?? now()->toDateString(),
+                'expiry_date'      => $params['expiry_date'] ?? null,
+                'status'           => self::STOCK_STATUS_NORMAL,
+                'updated_at'       => now(),
+            ]);
         } catch (\Illuminate\Database\QueryException $e) {
-            // Race condition: bản ghi vừa được tạo bởi request song song → đọc lại
-            return Stock::where('product_id', $params['product_id'])
-                ->where('location_id', $params['location_id'])
-                ->where('lot_id', $params['lot_id'] ?? null)
-                ->where('serial_id', $params['serial_id'] ?? null)
+            return Stock::where('product_id', (int) $params['product_id'])
+                ->where('location_id', (int) $params['location_id'])
+                ->when($lotId    !== null, fn($q) => $q->where('lot_id', $lotId),       fn($q) => $q->whereNull('lot_id'))
+                ->when($serialId !== null, fn($q) => $q->where('serial_id', $serialId), fn($q) => $q->whereNull('serial_id'))
                 ->lockForUpdate()
                 ->firstOrFail();
         }
@@ -605,8 +617,8 @@ class StockService
     {
         $stock = Stock::where('product_id', $productId)
             ->where('location_id', $locationId)
-            ->where('lot_id', $lotId)
-            ->where('serial_id', $serialId)
+            ->when($lotId    !== null, fn($q) => $q->where('lot_id', $lotId),       fn($q) => $q->whereNull('lot_id'))
+            ->when($serialId !== null, fn($q) => $q->where('serial_id', $serialId), fn($q) => $q->whereNull('serial_id'))
             ->first();
 
         if (! $stock) {
@@ -642,44 +654,57 @@ class StockService
      * @param  string  $strategy  'FEFO' | 'FIFO'
      * @return \Illuminate\Database\Eloquent\Collection
      */
-    public function suggestStockForIssue(int $productId, float $neededQty, string $strategy = 'FEFO'): \Illuminate\Support\Collection
+    public function suggestStockForIssue(int $productId, float $neededQty, ?int $locationId = null): \Illuminate\Support\Collection
     {
         $query = Stock::with(['lot', 'serial', 'location'])
             ->where('product_id', $productId)
             ->where('quantity', '>', 0)
-            ->whereRaw('quantity - reserved_qty > 0')
-            ->whereHas('location', fn ($q) => $q->where('type', 1)); // Internal locations only
+            ->whereRaw('(quantity - reserved_qty) > 0')
+            ->whereHas('location', fn ($q) => $q->where('type', 1));
 
-        // Sắp xếp theo chiến lược
-        $query = match ($strategy) {
-            'FEFO' => $query->orderByRaw("
+        if ($locationId) {
+            $query->where('location_id', $locationId);
+        }
+
+        // Kiểm tra có HSD nào không trong phạm vi truy vấn
+        $hasExpiry = (clone $query)->where(function ($q) {
+            $q->whereHas('lot', fn ($lq) => $lq->whereNotNull('expiry_date'))
+            ->orWhereHas('serial', fn ($sq) => $sq->whereNotNull('expiry_date'));
+        })->exists();
+
+        // Nếu có HSD → FEFO, không có → FIFO
+        if ($hasExpiry) {
+            $query->orderByRaw("
+                CASE
+                    WHEN lot_id IS NOT NULL AND (SELECT expiry_date FROM lots WHERE id = lot_id) IS NOT NULL THEN 0
+                    WHEN serial_id IS NOT NULL AND (SELECT expiry_date FROM serials WHERE id = serial_id) IS NOT NULL THEN 0
+                    ELSE 1
+                END ASC,
                 CASE
                     WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
                     WHEN serial_id IS NOT NULL THEN (SELECT expiry_date FROM serials WHERE id = serial_id)
-                    ELSE expiry_date
+                    ELSE NULL
                 END ASC,
-                CASE
-                    WHEN (
-                        CASE
-                            WHEN lot_id IS NOT NULL THEN (SELECT expiry_date FROM lots WHERE id = lot_id)
-                            WHEN serial_id IS NOT NULL THEN (SELECT expiry_date FROM serials WHERE id = serial_id)
-                            ELSE expiry_date
-                        END
-                    ) IS NULL THEN 1 ELSE 0
-                END ASC
-            "),
-            'FIFO' => $query->orderBy('received_date', 'asc'),
-            default => $query,
-        };
+                received_date ASC
+            ");
+        } else {
+            $query->orderBy('received_date', 'asc');
+        }
 
         $suggestions = collect();
-        $remaining = $neededQty;
+        $remaining   = $neededQty;
 
         foreach ($query->get() as $stock) {
             if ($remaining <= 0) break;
 
-            $available = $stock->quantity - $stock->reserved_qty;
+            $available = (float) $stock->quantity - (float) $stock->reserved_qty;
+            if ($available <= 0) continue;
+
             $take = min($available, $remaining);
+
+            $expiryDate = $stock->lot?->expiry_date
+                ?? $stock->serial?->expiry_date
+                ?? null;
 
             $suggestions->push([
                 'stock_id'    => $stock->id,
@@ -687,18 +712,16 @@ class StockService
                 'lot_id'      => $stock->lot_id,
                 'serial_id'   => $stock->serial_id,
                 'qty_suggest' => $take,
-                'expiry_date' => $stock->expiry_date
-                    ?? ($stock->lot?->expiry_date)
-                    ?? ($stock->serial?->expiry_date),
+                'expiry_date' => $expiryDate instanceof \Carbon\Carbon
+                    ? $expiryDate->toDateString()
+                    : $expiryDate,
             ]);
 
             $remaining -= $take;
         }
 
         if ($remaining > 0) {
-            throw new \Exception(
-                "Không đủ tồn kho. Còn thiếu: {$remaining}"
-            );
+            throw new \Exception("Không đủ tồn kho. Còn thiếu: {$remaining}");
         }
 
         return $suggestions;

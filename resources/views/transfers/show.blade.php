@@ -97,7 +97,7 @@ $transferStatus = (int) $transfer->status;
         @endif
 
         {{-- In phiếu --}}
-        @if(in_array($transferStatus, [2, 3, 4]))
+        @if(in_array($transferStatus, [3, 4]))
         <a href="{{ route('transfers.print', $transfer) }}" target="_blank" class="btn btn-outline-secondary">
             <svg class="icon me-1">
                 <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-print') }}"></use>
@@ -306,7 +306,9 @@ $transferStatus = (int) $transfer->status;
                                     <div class="text-body-secondary small">{{ $detail->toLocation->name }}</div>
                                     @endif
                                 </td>
-                                <td class="text-body-secondary small">{{ $detail->lot?->lot_number ?? '—' }}</td>
+                                <td class="text-body-secondary small">
+                                    {{ $detail->lot?->lot_number ?? ($detail->serial?->serial_number ?? '—') }}
+                                </td>
                                 <td class="text-body-secondary small">{{ $detail->note ?? '—' }}</td>
                             </tr>
                             @empty

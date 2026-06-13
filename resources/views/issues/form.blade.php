@@ -121,7 +121,7 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                     <div class="mb-3">
                         <label class="form-label">Trạng thái</label>
                         <select class="form-select" name="status">
-                            <option value="1" {{ ($issue->status ?? 1) == 1 ? 'selected' : '' }}>Draft</option>
+                            <option value="1" {{ ($issue->status ?? 1) == 1 ? 'selected' : '' }}>Nháp</option>
                             <option value="2" {{ ($issue->status ?? 1) == 2 ? 'selected' : '' }}>Chờ duyệt</option>
                             <option value="3" {{ ($issue->status ?? 1) == 3 ? 'selected' : '' }}>Đã duyệt</option>
                             <option value="4" {{ ($issue->status ?? 1) == 4 ? 'selected' : '' }}>Hoàn thành</option>
@@ -188,7 +188,8 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                                     <th style="width:100px">ĐVT</th>
                                     <th style="width:110px">Số lượng <span class="text-danger">*</span></th>
                                     <th style="width:130px">Vị trí kho <span class="text-danger">*</span></th>
-                                    <th style="width:110px">Lot / Batch</th>
+                                    <th style="width:110px">Số Lot / Batch</th>
+                                    <th style="width:120px">Số Serial</th>
                                     <th style="width:90px">Tồn hiện</th>
                                     <th style="width:200px">Ghi chú</th>
                                     <th style="width:36px"></th>
@@ -198,7 +199,11 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
 
                                 @if($isEdit && $issue->details->count())
                                 @foreach($issue->details as $i => $detail)
-                                <tr>
+                                <tr class="existing-row" data-current-location="{{ $detail->location_id }}"
+                                    data-current-lot-id="{{ $detail->lot_id ?? '' }}"
+                                    data-current-lot-number="{{ $detail->lot?->lot_number ?? '' }}"
+                                    data-current-serial-id="{{ $detail->serial_id ?? '' }}"
+                                    data-current-serial-number="{{ $detail->serial?->serial_number ?? '' }}">
                                     <td class="text-center text-body-secondary small">{{ $i + 1 }}</td>
                                     <td>
                                         <select class="form-select form-select-sm product-select"
@@ -208,6 +213,7 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                                             @foreach($products as $p)
                                             <option value="{{ $p->id }}" data-uom="{{ $p->uom?->name }}"
                                                 data-uom-id="{{ $p->uom_id }}" data-stock="{{ $p->total_stock }}"
+                                                data-tracking="{{ $p->tracking_type }}"
                                                 {{ $detail->product_id == $p->id ? 'selected' : '' }}>
                                                 {{ $p->code }} — {{ $p->name }}
                                             </option>
@@ -223,34 +229,31 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                                     <td>
                                         <input type="number" class="form-control form-control-sm text-end qty-input"
                                             name="details[{{ $i }}][quantity]" value="{{ $detail->quantity }}"
-                                            min="0.001" step="0.001" required oninput="checkStock(this)">
+                                            min="0.001" step="0.001" required oninput="handleQtyInput(this)">
                                     </td>
                                     <td>
-                                        <select class="form-select form-select-sm" name="details[{{ $i }}][location_id]"
-                                            required>
-                                            <option value="">— Chọn —</option>
-                                            @foreach($locations as $loc)
-                                            <option value="{{ $loc->id }}"
-                                                {{ $detail->location_id == $loc->id ? 'selected' : '' }}>
-                                                {{ $loc->code }}
-                                            </option>
-                                            @endforeach
+                                        <select class="form-select form-select-sm location-select"
+                                            name="details[{{ $i }}][location_id]" required
+                                            onchange="onLocationChange(this)" disabled>
+                                            <option value="{{ $detail->location_id }}">⏳ Đang tải...</option>
                                         </select>
                                     </td>
                                     <td>
-                                        <select class="form-select form-select-sm" name="details[{{ $i }}][lot_id]">
-                                            <option value="">— Không chọn —</option>
-                                            @if($detail->product)
-                                            @foreach($detail->product->lots()->active()->get() as $lot)
-                                            <option value="{{ $lot->id }}"
-                                                {{ $detail->lot_id == $lot->id ? 'selected' : '' }}>
-                                                {{ $lot->lot_number }}
-                                            </option>
-                                            @endforeach
-                                            @endif
+                                        <input type="hidden" name="details[{{ $i }}][lot_id]" class="lot-id-hidden"
+                                            value="{{ $detail->lot_id ?? '' }}">
+                                        <select class="form-select form-select-sm lot-select" disabled>
+                                            <option value="">— Đang tải —</option>
                                         </select>
                                     </td>
-                                    <td class="text-end small stock-display text-body-secondary">
+                                    <td>
+                                        <input type="hidden" name="details[{{ $i }}][serial_id]"
+                                            class="serial-id-hidden" value="{{ $detail->serial_id ?? '' }}">
+                                        <select class="form-select form-select-sm serial-select" disabled>
+                                            <option value="">— Đang tải —</option>
+                                        </select>
+                                    </td>
+                                    <td class="text-end small stock-display text-body-secondary"
+                                        data-stock="{{ $detail->product?->total_stock ?? 0 }}">
                                         {{ number_format($detail->product?->total_stock ?? 0, 0) }}
                                     </td>
                                     <td>
@@ -325,7 +328,7 @@ let rowIndex = <?php echo $isEdit ? $issue->details->count() : 0; ?>;
 // ── Template dòng chi tiết ─────────────────────────────────────────
 function rowTemplate(i) {
     const productOptions = PRODUCTS.map(p =>
-        `<option value="${p.id}" data-uom="${p.uom}" data-uom-id="${p.uom_id}" data-stock="${p.stock}">
+        `<option value="${p.id}" data-uom="${p.uom}" data-uom-id="${p.uom_id}" data-stock="${p.stock}" data-tracking="${p.tracking_type}">
       ${p.code} — ${p.name}
     </option>`
     ).join('');
@@ -335,7 +338,7 @@ function rowTemplate(i) {
     ).join('');
 
     return `
-  <tr>
+  <tr data-tracking="1">
     <td class="text-center text-body-secondary small">${i + 1}</td>
     <td>
       <select class="form-select form-select-sm product-select"
@@ -353,7 +356,7 @@ function rowTemplate(i) {
       <input type="number" class="form-control form-control-sm text-end qty-input"
              name="details[${i}][quantity]"
              min="0.001" step="0.001" required placeholder="0"
-             oninput="checkStock(this); updateTotals()">
+             oninput="handleQtyInput(this)">
     </td>
     <td>
       <select class="form-select form-select-sm location-select" name="details[${i}][location_id]"
@@ -362,9 +365,14 @@ function rowTemplate(i) {
       </select>
     </td>
     <td>
-      <input type="hidden" name="details[${i}][lot_id]"    class="lot-id-hidden"    value="">
-      <input type="hidden" name="details[${i}][serial_id]" class="serial-id-hidden" value="">
+      <input type="hidden" name="details[${i}][lot_id]" class="lot-id-hidden" value="">
       <select class="form-select form-select-sm lot-select">
+        <option value="">— Chọn vị trí trước —</option>
+      </select>
+    </td>
+    <td>
+      <input type="hidden" name="details[${i}][serial_id]" class="serial-id-hidden" value="">
+      <select class="form-select form-select-sm serial-select">
         <option value="">— Chọn vị trí trước —</option>
       </select>
     </td>
@@ -428,6 +436,8 @@ window.onProductChange = function(sel) {
     const opt = sel.options[sel.selectedIndex];
     const tr = sel.closest('tr');
     const productId = parseInt(opt.value);
+
+    tr.dataset.tracking = opt.dataset.tracking || 1;
 
     // ĐVT
     tr.querySelector('.uom-label').textContent = opt.dataset.uom || '—';
@@ -519,78 +529,263 @@ window.onProductChange = function(sel) {
     checkStock(tr.querySelector('.qty-input'));
 }
 
+
 // ── Khi chọn vị trí → cập nhật lot/serial tương ứng ──────────────
 window.onLocationChange = function(locationSel) {
     const tr = locationSel.closest('tr');
     const lotSel = tr.querySelector('.lot-select');
+    const serialSel = tr.querySelector('.serial-select');
     const lotHidden = tr.querySelector('.lot-id-hidden');
     const serialHidden = tr.querySelector('.serial-id-hidden');
     const locationId = parseInt(locationSel.value);
     const stockMap = tr.dataset.stockMap ? JSON.parse(tr.dataset.stockMap) : {};
 
-    // Reset hidden fields
     if (lotHidden) lotHidden.value = '';
     if (serialHidden) serialHidden.value = '';
 
     if (!locationId || !stockMap[locationId]) {
         lotSel.innerHTML = '<option value="">— Không chọn —</option>';
+        serialSel.innerHTML = '<option value="">— Không chọn —</option>';
         return;
     }
 
     const lots = stockMap[locationId].lots || [];
     const serials = stockMap[locationId].serials || [];
-    let html = '<option value="">— Không chọn —</option>';
 
-    if (lots.length) {
-        html += '<optgroup label="Lot / Batch">' +
-            lots.map(l =>
-                `<option value="lot:${l.id}">` +
-                `${l.lot_number}` +
-                `${l.expiry_date ? ' · HSD: ' + l.expiry_date : ''}` +
-                ` · Tồn: ${l.available_qty.toLocaleString('vi-VN')}` +
-                `</option>`
-            ).join('') +
-            '</optgroup>';
-    }
+    // Lot / Batch
+    lotSel.innerHTML = '<option value="">— Không chọn —</option>' +
+        lots.map(l =>
+            `<option value="${l.id}">${l.lot_number}` +
+            `${l.expiry_date ? ' · HSD: ' + l.expiry_date : ''}` +
+            ` · Tồn: ${l.available_qty.toLocaleString('vi-VN')}</option>`
+        ).join('');
 
-    if (serials.length) {
-        html += '<optgroup label="Serial">' +
-            serials.map(s =>
-                `<option value="serial:${s.id}">` +
-                `${s.serial_number}` +
-                ` · Tồn: ${s.available_qty.toLocaleString('vi-VN')}` +
-                `</option>`
-            ).join('') +
-            '</optgroup>';
-    }
+    // Số Serial
+    serialSel.innerHTML = '<option value="">— Không chọn —</option>' +
+        serials.map(s =>
+            `<option value="${s.id}">${s.serial_number} · Tồn: ${s.available_qty.toLocaleString('vi-VN')}</option>`
+        ).join('');
 
-    lotSel.innerHTML = html;
-
-    // Tự động chọn nếu chỉ có 1 option (lot hoặc serial)
-    const allItems = [...lots, ...serials];
-    if (allItems.length === 1) {
+    // Tự động chọn nếu chỉ có đúng 1 lot
+    if (lots.length === 1) {
         lotSel.selectedIndex = 1;
+        if (lotHidden) lotHidden.value = lots[0].id;
         lotSel.dispatchEvent(new Event('change'));
+    }
+    // Tự động chọn nếu chỉ có đúng 1 serial
+    if (serials.length === 1) {
+        serialSel.selectedIndex = 1;
+        if (serialHidden) serialHidden.value = serials[0].id;
+        serialSel.dispatchEvent(new Event('change'));
     }
 }
 
-// ── Khi chọn lot/serial → cập nhật hidden fields ──────────────────
+// ── Nạp dữ liệu vị trí/lot/serial cho các dòng đã có sẵn (Edit) ───
+function initExistingRow(tr) {
+    const productSel = tr.querySelector('.product-select');
+    const productId = parseInt(productSel.value);
+    if (!productId) return;
+
+    const opt = productSel.options[productSel.selectedIndex];
+    tr.dataset.tracking = opt.dataset.tracking || 1;
+
+    const locationSel = tr.querySelector('.location-select');
+    const lotSel = tr.querySelector('.lot-select');
+    const serialSel = tr.querySelector('.serial-select');
+
+    const currentLocation = tr.dataset.currentLocation;
+    const currentLotId = tr.dataset.currentLotId;
+    const currentSerialId = tr.dataset.currentSerialId;
+
+    fetch(`/issues/stock-locations/${productId}`)
+        .then(r => r.json())
+        .then(stocks => {
+            const locMap = {};
+            stocks.forEach(s => {
+                if (!locMap[s.location_id]) {
+                    locMap[s.location_id] = {
+                        id: s.location_id,
+                        code: s.location_code,
+                        name: s.location_name,
+                        available_qty: 0,
+                        lots: [],
+                        serials: [],
+                    };
+                }
+                locMap[s.location_id].available_qty += s.available_qty;
+                if (s.lot_id) {
+                    locMap[s.location_id].lots.push({
+                        id: s.lot_id,
+                        lot_number: s.lot_number,
+                        expiry_date: s.expiry_date,
+                        available_qty: s.available_qty,
+                    });
+                }
+                if (s.serial_id) {
+                    locMap[s.location_id].serials.push({
+                        id: s.serial_id,
+                        serial_number: s.serial_number,
+                        available_qty: s.available_qty,
+                    });
+                }
+            });
+
+            // Đảm bảo vị trí/lot/serial hiện tại của dòng luôn xuất hiện trong danh sách
+            if (currentLocation && !locMap[currentLocation]) {
+                locMap[currentLocation] = {
+                    id: parseInt(currentLocation),
+                    code: '(vị trí hiện tại)',
+                    name: '',
+                    available_qty: 0,
+                    lots: [],
+                    serials: [],
+                };
+            }
+            if (currentLocation && currentLotId &&
+                !locMap[currentLocation].lots.find(l => String(l.id) === String(currentLotId))) {
+                locMap[currentLocation].lots.push({
+                    id: parseInt(currentLotId),
+                    lot_number: tr.dataset.currentLotNumber || `Lot #${currentLotId}`,
+                    expiry_date: null,
+                    available_qty: 0,
+                });
+            }
+            if (currentLocation && currentSerialId &&
+                !locMap[currentLocation].serials.find(s => String(s.id) === String(currentSerialId))) {
+                locMap[currentLocation].serials.push({
+                    id: parseInt(currentSerialId),
+                    serial_number: tr.dataset.currentSerialNumber || `Serial #${currentSerialId}`,
+                    available_qty: 0,
+                });
+            }
+
+            tr.dataset.stockMap = JSON.stringify(locMap);
+
+            const locs = Object.values(locMap);
+            locationSel.innerHTML = locs.map(l =>
+                `<option value="${l.id}">${l.code}${l.name ? ' — ' + l.name : ''} ` +
+                `(Khả dụng: ${l.available_qty.toLocaleString('vi-VN')})</option>`
+            ).join('');
+            locationSel.disabled = false;
+
+            if (currentLocation) {
+                locationSel.value = currentLocation;
+
+                // Populate lot/serial options mà không reset hidden fields
+                const stockMap = tr.dataset.stockMap ? JSON.parse(tr.dataset.stockMap) : {};
+                const locationId = parseInt(currentLocation);
+                const lots = stockMap[locationId]?.lots || [];
+                const serials = stockMap[locationId]?.serials || [];
+
+                const lotHidden = tr.querySelector('.lot-id-hidden');
+                const serialHidden = tr.querySelector('.serial-id-hidden');
+
+                lotSel.innerHTML = '<option value="">— Không chọn —</option>' +
+                    lots.map(l =>
+                        `<option value="${l.id}">${l.lot_number}` +
+                        `${l.expiry_date ? ' · HSD: ' + l.expiry_date : ''}` +
+                        ` · Tồn: ${l.available_qty.toLocaleString('vi-VN')}</option>`
+                    ).join('');
+
+                serialSel.innerHTML = '<option value="">— Không chọn —</option>' +
+                    serials.map(s =>
+                        `<option value="${s.id}">${s.serial_number} · Tồn: ${s.available_qty.toLocaleString('vi-VN')}</option>`
+                    ).join('');
+
+                if (currentLotId) {
+                    lotSel.value = currentLotId;
+                    if (lotHidden) lotHidden.value = currentLotId;
+                }
+                if (currentSerialId) {
+                    serialSel.value = currentSerialId;
+                    if (serialHidden) serialHidden.value = currentSerialId;
+                }
+            }
+            lotSel.disabled = false;
+            serialSel.disabled = false;
+        })
+        .catch(() => {
+            locationSel.innerHTML = '<option value="">— Lỗi tải vị trí —</option>';
+            locationSel.disabled = false;
+            lotSel.disabled = false;
+            serialSel.disabled = false;
+        });
+}
+
+// ── Khi chọn Lot/Batch hoặc Serial → cập nhật hidden fields ───────
 document.addEventListener('change', function(e) {
-    if (!e.target.classList.contains('lot-select')) return;
-    const tr = e.target.closest('tr');
-    const lotHidden = tr.querySelector('.lot-id-hidden');
-    const serialHidden = tr.querySelector('.serial-id-hidden');
-    const val = e.target.value; // "lot:5" | "serial:12" | ""
-
-    if (lotHidden) lotHidden.value = '';
-    if (serialHidden) serialHidden.value = '';
-
-    if (val.startsWith('lot:')) {
-        if (lotHidden) lotHidden.value = val.split(':')[1];
-    } else if (val.startsWith('serial:')) {
-        if (serialHidden) serialHidden.value = val.split(':')[1];
+    if (e.target.classList.contains('lot-select')) {
+        const tr = e.target.closest('tr');
+        const lotHidden = tr.querySelector('.lot-id-hidden');
+        if (lotHidden) lotHidden.value = e.target.value;
+    }
+    if (e.target.classList.contains('serial-select')) {
+        const tr = e.target.closest('tr');
+        const serialHidden = tr.querySelector('.serial-id-hidden');
+        if (serialHidden) serialHidden.value = e.target.value;
+        checkDuplicateSerials();
     }
 });
+
+// ── SL hàng quản lý theo Serial → tự sinh thêm dòng (mỗi dòng = 1 serial) ──
+window.handleQtyInput = function(qtyInput) {
+    const tr = qtyInput.closest('tr');
+    const tracking = parseInt(tr.dataset.tracking) || 1;
+    const isSerialManaged = (tracking === 3 || tracking === 4); // SERIAL hoặc LOT+SERIAL
+
+    if (isSerialManaged) {
+        const qty = parseInt(qtyInput.value) || 0;
+
+        if (qty > 1) {
+            const productSel = tr.querySelector('.product-select');
+            const productOpt = productSel.options[productSel.selectedIndex];
+            const locationSel = tr.querySelector('.location-select');
+            const locationVal = locationSel.value;
+            const stockMapStr = tr.dataset.stockMap || '';
+
+            qtyInput.value = 1;
+
+            for (let n = 1; n < qty; n++) {
+                addRow();
+                const newTr = document.getElementById('detailBody').lastElementChild;
+
+                // Copy hàng hóa, ĐVT, tồn, tracking
+                const newProductSel = newTr.querySelector('.product-select');
+                newProductSel.value = productSel.value;
+                newTr.querySelector('.uom-label').textContent = productOpt.dataset.uom || '—';
+                newTr.querySelector('.uom-hidden').value = productOpt.dataset.uomId || '';
+                const stockEl = newTr.querySelector('.stock-display');
+                stockEl.textContent = (parseFloat(productOpt.dataset.stock) || 0).toLocaleString('vi-VN');
+                stockEl.dataset.stock = productOpt.dataset.stock || 0;
+                newTr.dataset.tracking = tracking;
+                newTr.querySelector('.qty-input').value = 1;
+
+                // Copy danh sách vị trí/lot/serial đã fetch (không gọi lại API)
+                if (stockMapStr) {
+                    newTr.dataset.stockMap = stockMapStr;
+                    const locMap = JSON.parse(stockMapStr);
+                    const locs = Object.values(locMap);
+                    const newLocationSel = newTr.querySelector('.location-select');
+                    newLocationSel.innerHTML =
+                        '<option value="">— Chọn vị trí lấy hàng —</option>' +
+                        locs.map(l =>
+                            `<option value="${l.id}">${l.code}${l.name ? ' — ' + l.name : ''} ` +
+                            `(Khả dụng: ${l.available_qty.toLocaleString('vi-VN')})</option>`
+                        ).join('');
+                    newLocationSel.disabled = false;
+
+                    if (locationVal) {
+                        newLocationSel.value = locationVal;
+                        onLocationChange(newLocationSel);
+                    }
+                }
+            }
+        }
+    }
+
+    checkStock(qtyInput);
+    updateTotals();
+}
 
 // ── Kiểm tra SL xuất so với tồn ───────────────────────────────────
 window.checkStock = function(qtyInput) {
@@ -618,9 +813,46 @@ document.getElementById('issueType').addEventListener('change', function() {
     document.getElementById('returnDateGroup').style.display = this.value == '3' ? '' : 'none';
 });
 
+function checkDuplicateSerials() {
+    const seen = {};
+    let hasDup = false;
+
+    document.querySelectorAll('#detailBody tr').forEach(tr => {
+        const serialSel = tr.querySelector('.serial-select');
+        const val = serialSel?.value;
+        if (!val) return;
+
+        if (seen[val]) {
+            serialSel.classList.add('is-invalid');
+            seen[val].classList.add('is-invalid');
+            hasDup = true;
+        } else {
+            seen[val] = serialSel;
+            serialSel.classList.remove('is-invalid');
+        }
+    });
+
+    const btn = document.querySelector('button[name="action"]');
+    if (btn) btn.disabled = hasDup;
+
+    let warn = document.getElementById('serialDupWarning');
+    if (hasDup) {
+        if (!warn) {
+            warn = document.createElement('div');
+            warn.id = 'serialDupWarning';
+            warn.className = 'alert alert-danger mt-3';
+            warn.innerHTML = '<strong>Lỗi:</strong> Có số Serial bị chọn trùng nhau trong cùng phiếu.';
+            document.getElementById('detailTable').closest('.card').after(warn);
+        }
+    } else {
+        warn?.remove();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     toggleEmptyState();
     updateTotals();
+    document.querySelectorAll('#detailBody tr.existing-row').forEach(initExistingRow);
     @if(!$isEdit) addRow();
     @endif
 });
