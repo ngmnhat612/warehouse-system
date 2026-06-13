@@ -75,11 +75,12 @@ class StockTransferController extends Controller
             ->groupBy('product_id');
 
         $productsJson  = $products->map(fn($p) => [
-            'id'     => $p->id,
-            'code'   => $p->code,
-            'name'   => $p->name,
-            'uom'    => $p->uom?->name ?? '—',
-            'uom_id' => $p->uom_id,
+            'id'       => $p->id,
+            'code'     => $p->code,
+            'name'     => $p->name,
+            'uom'      => $p->uom?->name ?? '—',
+            'uom_id'   => $p->uom_id,
+            'tracking' => (int) ($p->tracking_type ?? 1),
         ])->values();
 
         $locationsJson = $locations->map(fn($l) => [
@@ -150,6 +151,7 @@ class StockTransferController extends Controller
             'details.fromLocation',
             'details.toLocation',
             'details.lot',
+            'details.serial',
             'details.uom',
         ]);
 
@@ -168,6 +170,7 @@ class StockTransferController extends Controller
             'details.fromLocation',
             'details.toLocation',
             'details.lot',
+            'details.serial',
             'details.uom',
         ]);
 
@@ -185,7 +188,7 @@ class StockTransferController extends Controller
                 ->with('error', 'Chỉ có thể chỉnh sửa phiếu ở trạng thái Nháp.');
         }
 
-        $transfer->load(['details.product', 'details.fromLocation', 'details.toLocation', 'details.lot', 'details.uom']);
+        $transfer->load(['details.product', 'details.fromLocation', 'details.toLocation', 'details.lot', 'details.serial', 'details.uom']);
 
         $products  = Product::with('uom')->where('status', 1)->orderBy('code')->get();
         $locations = Location::where('status', 1)->orderBy('code')->get();
@@ -197,11 +200,12 @@ class StockTransferController extends Controller
             ->groupBy('product_id');
 
         $productsJson  = $products->map(fn($p) => [
-            'id'     => $p->id,
-            'code'   => $p->code,
-            'name'   => $p->name,
-            'uom'    => $p->uom?->name ?? '—',
-            'uom_id' => $p->uom_id,
+            'id'       => $p->id,
+            'code'     => $p->code,
+            'name'     => $p->name,
+            'uom'      => $p->uom?->name ?? '—',
+            'uom_id'   => $p->uom_id,
+            'tracking' => (int) ($p->tracking_type ?? 1),
         ])->values();
 
         $locationsJson = $locations->map(fn($l) => [
@@ -388,17 +392,20 @@ class StockTransferController extends Controller
     {
         $request->validate(['product_id' => 'required|integer|exists:products,id']);
 
-        $locations = Stock::with('location')
+        $locations = Stock::with(['location', 'lot', 'serial'])
             ->where('product_id', $request->product_id)
             ->whereHas('location', fn($q) => $q->where('type', 1)->where('status', 1))
             ->whereRaw('quantity - reserved_qty > 0')
             ->get()
             ->map(fn($s) => [
-                'location_id'   => $s->location_id,
-                'code'          => $s->location?->code,
-                'name'          => $s->location?->name ?? '',
-                'lot_id'        => $s->lot_id,
-                'available_qty' => round($s->quantity - $s->reserved_qty, 3),
+                'location_id'    => $s->location_id,
+                'code'           => $s->location?->code,
+                'name'           => $s->location?->name ?? '',
+                'lot_id'         => $s->lot_id,
+                'lot_number'     => $s->lot?->lot_number,
+                'serial_id'      => $s->serial_id,
+                'serial_number'  => $s->serial?->serial_number,
+                'available_qty'  => round($s->quantity - $s->reserved_qty, 3),
             ]);
 
         return response()->json($locations);
@@ -426,6 +433,7 @@ class StockTransferController extends Controller
             'details.*.from_location_id'    => 'required|exists:locations,id',
             'details.*.to_location_id'      => 'required|exists:locations,id|different:details.*.from_location_id',
             'details.*.lot_id'              => 'nullable|exists:lots,id',
+            'details.*.serial_id'           => 'nullable|exists:serials,id',
             'details.*.note'                => 'nullable|string|max:200',
         ], [
             'code.unique'                           => 'Mã phiếu đã tồn tại.',
@@ -449,13 +457,12 @@ class StockTransferController extends Controller
             if (empty($row['product_id']) || empty($row['quantity'])) {
                 continue;
             }
-
             StockTransferDetail::create([
                 'stock_transfer_id' => $transfer->id,
                 'product_id'        => $row['product_id'],
                 'uom_id'            => $row['uom_id'],
                 'lot_id'            => $row['lot_id'] ?: null,
-                'serial_id'         => null,
+                'serial_id'         => $row['serial_id'] ?: null,
                 'from_location_id'  => $row['from_location_id'],
                 'to_location_id'    => $row['to_location_id'],
                 'quantity'          => $row['quantity'],

@@ -306,7 +306,9 @@ $transferStatus = (int) $transfer->status;
                                     <div class="text-body-secondary small">{{ $detail->toLocation->name }}</div>
                                     @endif
                                 </td>
-                                <td class="text-body-secondary small">{{ $detail->lot?->lot_number ?? '—' }}</td>
+                                <td class="text-body-secondary small">
+                                    {{ $detail->lot?->lot_number ?? ($detail->serial?->serial_number ?? '—') }}
+                                </td>
                                 <td class="text-body-secondary small">{{ $detail->note ?? '—' }}</td>
                             </tr>
                             @empty
