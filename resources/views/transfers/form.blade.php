@@ -492,6 +492,76 @@ function onProductChange(sel) {
         });
 }
 
+// ── Khởi tạo dòng có sẵn (Edit): gọi AJAX để lấy vị trí khả dụng,
+//    nhưng giữ nguyên from_location_id / lot_id / serial_id đã lưu ──
+function initExistingRow(tr) {
+    const productSel = tr.querySelector('.product-select');
+    const productId = parseInt(productSel?.value);
+    if (!productId) return;
+
+    const fromSel = tr.querySelector('.from-location-select');
+    const fromLocHidden = tr.querySelector('.from-location-id-hidden');
+    const lotHidden = tr.querySelector('.lot-id-hidden');
+    const serialHidden = tr.querySelector('.serial-id-hidden');
+    const display = tr.querySelector('.lot-serial-display');
+    if (!fromSel) return;
+
+    const savedLocationId = fromLocHidden?.value || '';
+    const savedLotId = lotHidden?.value || '';
+    const savedSerialId = serialHidden?.value || '';
+
+    fromSel.innerHTML = '<option value="">Đang tải...</option>';
+    fromSel.disabled = true;
+
+    fetch(`{{ route('transfers.stock-locations') }}?product_id=${productId}`, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            fromSel.disabled = false;
+
+            if (data.length === 0) {
+                fromSel.innerHTML = '<option value="">— Không có tồn kho —</option>';
+                return;
+            }
+
+            let matchedValue = '';
+            const optionsHtml = data.map((s, idx) => {
+                const value = `${s.location_id}_${s.lot_id ?? ''}_${s.serial_id ?? ''}_${idx}`;
+                const isMatch =
+                    String(s.location_id) === String(savedLocationId) &&
+                    String(s.lot_id ?? '') === String(savedLotId) &&
+                    String(s.serial_id ?? '') === String(savedSerialId);
+                if (isMatch) matchedValue = value;
+
+                return `<option value="${value}"` +
+                    ` data-location-id="${s.location_id}"` +
+                    ` data-lot-id="${s.lot_id ?? ''}"` +
+                    ` data-lot-number="${s.lot_number ?? ''}"` +
+                    ` data-serial-id="${s.serial_id ?? ''}"` +
+                    ` data-serial-number="${s.serial_number ?? ''}"` +
+                    `${isMatch ? ' selected' : ''}>` +
+                    `${s.code}${s.name ? ' — ' + s.name : ''}` +
+                    `${s.serial_number ? ' — SN:' + s.serial_number : ''}` +
+                    `${s.lot_number ? ' — Lot:' + s.lot_number : ''}` +
+                    ` (KD: ${s.available_qty})</option>`;
+            }).join('');
+
+            fromSel.innerHTML = '<option value="">— Chọn vị trí nguồn —</option>' + optionsHtml;
+
+            if (matchedValue) {
+                fromSel.value = matchedValue;
+            }
+            // Giữ nguyên hidden lot/serial/location đã lưu, display giữ nguyên giá trị hiện có
+        })
+        .catch(() => {
+            fromSel.disabled = false;
+            fromSel.innerHTML = '<option value="">— Lỗi tải dữ liệu —</option>';
+        });
+}
+
 // ── Kiểm tra vị trí nguồn ≠ vị trí đích ─────────────────────────
 function validateLocationPair(sel) {
     const tr = sel.closest('tr');
@@ -579,13 +649,57 @@ function checkAllLocationPairs() {
     document.getElementById('locationWarning').classList.toggle('d-none', !hasWarning);
 }
 
+// ── Chặn submit nếu trùng Serial giữa các dòng ──────────────────
+document.getElementById('transferForm')?.addEventListener('submit', function(e) {
+    // Reset trạng thái lỗi cũ
+    document.querySelectorAll('#detailBody .lot-serial-display.is-invalid')
+        .forEach(el => el.classList.remove('is-invalid'));
+
+    // Gom nhóm theo serial_id
+    const groups = new Map(); // serial_id -> [tr, tr, ...]
+    document.querySelectorAll('#detailBody tr').forEach(tr => {
+        const serialId = tr.querySelector('.serial-id-hidden')?.value;
+        if (!serialId) return;
+        if (!groups.has(serialId)) groups.set(serialId, []);
+        groups.get(serialId).push(tr);
+    });
+
+    let hasDup = false;
+    groups.forEach(rows => {
+        if (rows.length > 1) {
+            hasDup = true;
+            rows.forEach(tr => {
+                tr.querySelector('.lot-serial-display')?.classList.add('is-invalid');
+            });
+        }
+    });
+
+    if (hasDup) {
+        e.preventDefault();
+        const container = document.getElementById('formAlerts') || document.querySelector('.col-lg-8 .card');
+        const alertHtml = `
+            <div class="alert alert-danger alert-dismissible mx-3 mt-3 mb-0" role="alert">
+                <strong>Có số Serial bị trùng giữa các dòng. Vui lòng kiểm tra các ô được đánh dấu đỏ.</strong>
+                <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
+            </div>`;
+        container.insertAdjacentHTML('afterbegin', alertHtml);
+        document.querySelector('.lot-serial-display.is-invalid')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest'
+        });
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnAddRow')?.addEventListener('click', addRow);
     document.getElementById('btnAddRowEmpty')?.addEventListener('click', addRow);
 
     toggleEmptyState();
     updateTotals();
-    @if(!$isEdit) addRow();
+    @if(!$isEdit)
+    addRow();
+    @else
+    document.querySelectorAll('#detailBody tr').forEach(tr => initExistingRow(tr));
     @endif
 });
 </script>

@@ -449,6 +449,21 @@ class StockTransferController extends Controller
             'details.*.to_location_id.required'     => 'Vui lòng chọn vị trí đích.',
             'details.*.to_location_id.different'    => 'Vị trí đích phải khác vị trí nguồn.',
         ]);
+
+        // Kiểm tra trùng serial_id giữa các dòng (1 serial chỉ chuyển 1 lần / phiếu)
+        $details = $request->input('details', []);
+        $seen = [];
+        foreach ($details as $idx => $row) {
+            $serialId = $row['serial_id'] ?? null;
+            if (!$serialId) continue;
+
+            if (isset($seen[$serialId])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    "details.$idx.serial_id" => "Số Serial bị trùng với dòng " . ($seen[$serialId] + 1) . " trong phiếu.",
+                ]);
+            }
+            $seen[$serialId] = $idx;
+        }
     }
 
     private function saveDetails(StockTransfer $transfer, array $details): void
