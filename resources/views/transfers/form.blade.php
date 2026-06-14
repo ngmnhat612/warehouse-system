@@ -121,7 +121,7 @@ $action = $isEdit ? route('transfers.update', $transfer->id) : route('transfers.
                             <th style="width:130px">Vị trí nguồn <span class="text-danger">*</span></th>
                             <th style="width:130px">Vị trí đích <span class="text-danger">*</span></th>
                             <th style="width:110px">
-                                Số Lot/Batch
+                                Số Lot
                                 <svg class="icon icon-sm text-body-secondary" title="Tự điền khi chọn vị trí nguồn">
                                     <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}">
                                     </use>
