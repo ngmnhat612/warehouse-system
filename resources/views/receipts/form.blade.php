@@ -651,6 +651,33 @@ function validateLotSerial() {
         }
     });
 
+    // ── Bước 3: LotAndSerial — các dòng cùng product phải dùng cùng 1 lot ──
+    const lotMap = {}; // { product_id: { lot_value: rowIndex } }
+    document.querySelectorAll('#detailBody tr').forEach((tr, i) => {
+        const sel = tr.querySelector('.product-select');
+        const opt = sel?.options[sel.selectedIndex];
+        const tracking = parseInt(opt?.dataset?.tracking) || TRACKING_NONE;
+        if (tracking !== TRACKING_LOT_AND_SERIAL) return;
+
+        const productId = sel?.value;
+        const lotInput = tr.querySelector('.lot-input');
+        const lotVal = lotInput?.value.trim();
+        if (!productId || !lotVal) return;
+
+        if (!lotMap[productId]) lotMap[productId] = null;
+
+        if (lotMap[productId] === null) {
+            lotMap[productId] = {
+                value: lotVal,
+                row: i
+            };
+        } else if (lotMap[productId].value !== lotVal) {
+            lotInput.classList.add('is-invalid');
+            const firstRow = lotMap[productId].row + 1;
+            errors.push(`Nhiều serial trong cùng 1 lô thì nhập cùng mã lot.`);
+        }
+    });
+
     return errors;
 }
 
@@ -660,19 +687,11 @@ document.getElementById('receiptForm').addEventListener('submit', function(e) {
 
     e.preventDefault();
     const container = document.getElementById('lotSerialAlertContainer');
-    const hasSerialDup = errors.some(msg => msg.includes('đã nhập ở dòng'));
-    const hasLotSerial = errors.some(msg => !msg.includes('đã nhập ở dòng'));
-    let message = '';
-    if (hasSerialDup && !hasLotSerial) {
-        message = 'Số Serial bị trùng trong phiếu.';
-    } else if (hasSerialDup && hasLotSerial) {
-        message = 'Chưa nhập đủ thông tin Lot / Serial và có Số Serial bị trùng.';
-    } else {
-        message = 'Chưa nhập đủ thông tin Lot / Serial.';
-    }
+    const ul = errors.map(msg => `<li>${msg}</li>`).join('');
     container.innerHTML = `
         <div class="alert alert-danger alert-dismissible mx-3 mt-3 mb-0" role="alert">
-            <strong>${message}</strong>
+            <strong>Vui lòng kiểm tra lại thông tin Lot / Serial:</strong>
+            <ul class="mb-0 mt-1">${ul}</ul>
             <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
         </div>`;
     container.scrollIntoView({

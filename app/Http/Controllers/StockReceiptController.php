@@ -617,6 +617,30 @@ class StockReceiptController extends Controller
             }
         }
 
+        // Kiểm tra LotAndSerial — cùng product phải dùng cùng 1 lot
+        $lotSeen = []; // [ product_id => [ 'value' => lot_number, 'line' => line ] ]
+        foreach ($details as $i => $row) {
+            if (empty($row['product_id'])) continue;
+            $product  = Product::find($row['product_id']);
+            $tracking = (int) ($product?->tracking_type ?? Product::TRACKING_NONE);
+            if ($tracking !== Product::TRACKING_LOT_AND_SERIAL) continue;
+
+            $lotValue = trim($row['lot_number'] ?? '');
+            if ($lotValue === '') continue;
+
+            $productId = $row['product_id'];
+            $line      = $i + 1;
+
+            if (!isset($lotSeen[$productId])) {
+                $lotSeen[$productId] = ['value' => $lotValue, 'line' => $line];
+            } elseif ($lotSeen[$productId]['value'] !== $lotValue) {
+                $firstLine = $lotSeen[$productId]['line'];
+                $firstLot  = $lotSeen[$productId]['value'];
+                $errors["details.{$i}.lot_number"] =
+                    "Dòng {$line}: Số Lot \"{$lotValue}\" khác với dòng {$firstLine} (\"{$firstLot}\"). Các serial trong cùng lô phải dùng cùng mã lot.";
+            }
+        }
+
         if (!empty($errors)) {
             throw \Illuminate\Validation\ValidationException::withMessages($errors);
         }
