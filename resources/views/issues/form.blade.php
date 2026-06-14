@@ -113,19 +113,6 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                     @error('expected_return_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
-                @if($isEdit)
-                <div class="col-md-2">
-                    <label class="form-label form-label-sm mb-1">Trạng thái</label>
-                    <select class="form-select form-select-sm" name="status">
-                        <option value="1" {{ ($issue->status ?? 1) == 1 ? 'selected' : '' }}>Nháp</option>
-                        <option value="2" {{ ($issue->status ?? 1) == 2 ? 'selected' : '' }}>Chờ duyệt</option>
-                        <option value="3" {{ ($issue->status ?? 1) == 3 ? 'selected' : '' }}>Đã duyệt</option>
-                        <option value="4" {{ ($issue->status ?? 1) == 4 ? 'selected' : '' }}>Hoàn thành</option>
-                        <option value="5" {{ ($issue->status ?? 1) == 5 ? 'selected' : '' }}>Đã hủy</option>
-                    </select>
-                </div>
-                @endif
-
                 <div class="col-md-2">
                     <label class="form-label form-label-sm mb-1">Ghi chú</label>
                     <input type="text" class="form-control form-control-sm" name="note"

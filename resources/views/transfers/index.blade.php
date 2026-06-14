@@ -213,23 +213,40 @@
                                 style="max-width:180px">{{ $transfer->note ?? '—' }}</span>
                         </td>
                         <td class="text-end">
-                            <a href="{{ route('transfers.show', $transfer) }}" class="btn btn-sm btn-outline-primary"
-                                title="Xem chi tiết">
-                                <svg class="icon">
-                                    <use
-                                        xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-magnifying-glass') }}">
-                                    </use>
-                                </svg>
-                            </a>
-                            @if($transfer->status === 1)
-                            <a href="{{ route('transfers.edit', $transfer) }}" class="btn btn-sm btn-outline-secondary"
-                                title="Chỉnh sửa">
-                                <svg class="icon">
-                                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-pencil') }}">
-                                    </use>
-                                </svg>
-                            </a>
-                            @endif
+                            <div class="d-flex flex-wrap justify-content-end gap-1"
+                                style="max-width: 80px; margin-left: auto;">
+                                <a href="{{ route('transfers.show', $transfer) }}"
+                                    class="btn btn-sm btn-outline-primary" title="Xem chi tiết">
+                                    <svg class="icon">
+                                        <use
+                                            xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-magnifying-glass') }}">
+                                        </use>
+                                    </svg>
+                                </a>
+                                @if($transfer->status === 1)
+                                <a href="{{ route('transfers.edit', $transfer) }}"
+                                    class="btn btn-sm btn-outline-secondary" title="Chỉnh sửa">
+                                    <svg class="icon">
+                                        <use
+                                            xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-pencil') }}">
+                                        </use>
+                                    </svg>
+                                </a>
+                                <div class="w-100 d-flex justify-content-center">
+                                    <form method="POST" action="{{ route('transfers.destroy', $transfer) }}"
+                                        onsubmit="return confirm('Xóa vĩnh viễn phiếu {{ $transfer->code }}?')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa">
+                                            <svg class="icon">
+                                                <use
+                                                    xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}">
+                                                </use>
+                                            </svg>
+                                        </button>
+                                    </form>
+                                </div>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                     @empty
