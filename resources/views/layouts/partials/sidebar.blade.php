@@ -59,6 +59,16 @@
     </li>
 
     <li class="nav-item">
+      <a class="nav-link {{ request()->routeIs('scraps.*') ? 'active' : '' }}"
+         href="{{ route('scraps.index') }}">
+        <svg class="nav-icon">
+          <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-trash') }}"></use>
+        </svg>
+        Hủy hàng
+      </a>
+    </li>
+
+    <li class="nav-item">
       <a class="nav-link {{ request()->routeIs('stocktakes.*') ? 'active' : '' }}"
          href="{{ route('stocktakes.index') }}">
         <svg class="nav-icon">
