@@ -52,6 +52,12 @@ class AdminSeeder extends Seeder
             'transformation.create',
             'transformation.approve',
             'transformation.confirm',
+
+            // Phiếu hủy hàng
+            'scrap.view',
+            'scrap.create',
+            'scrap.approve',
+            'scrap.confirm',
         ];
 
         foreach ($permissions as $perm) {
@@ -70,6 +76,8 @@ class AdminSeeder extends Seeder
             'stocktake.view',
             'transformation.view',  'transformation.create',
             'transformation.confirm',
+            'scrap.view',           'scrap.create',
+            'scrap.confirm',
         ]);
 
         // Tạo tài khoản admin mặc định

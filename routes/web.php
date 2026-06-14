@@ -175,6 +175,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/export',  [ActivityLogController::class, 'export'])->name('export');
     });
 
+    // ── NHẬP KHO ───────────────────────────────────────────────────────
     Route::get('receipts/suggest-putaway',    [StockReceiptController::class, 'suggestPutaway'])->name('receipts.suggest-putaway');
     Route::resource('receipts', StockReceiptController::class);
     Route::post('receipts/{receipt}/submit',  [StockReceiptController::class, 'submit'])->name('receipts.submit');
@@ -182,6 +183,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('receipts/{receipt}/confirm', [StockReceiptController::class, 'confirm'])->name('receipts.confirm');
     Route::post('receipts/{receipt}/cancel',  [StockReceiptController::class, 'cancel'])->name('receipts.cancel');
 
+    // ── XUẤT KHO ───────────────────────────────────────────────────────
     Route::get('issues/stock-locations/{productId}', [StockIssueController::class, 'stockLocations'])
     ->name('issues.stockLocations');
     Route::resource('issues', StockIssueController::class);
@@ -190,6 +192,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('issues/{issue}/confirm', [StockIssueController::class, 'confirm'])->name('issues.confirm');
     Route::post('issues/{issue}/cancel',  [StockIssueController::class, 'cancel'])->name('issues.cancel');
 
+    // ── CHUYỂN KHO ───────────────────────────────────────────────────────
     Route::get('transfers/stock-locations', [StockTransferController::class, 'stockLocations'])->name('transfers.stock-locations');
     Route::resource('transfers', StockTransferController::class);
     Route::post('transfers/{transfer}/submit',  [StockTransferController::class, 'submit'])->name('transfers.submit');
@@ -197,10 +200,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('transfers/{transfer}/confirm', [StockTransferController::class, 'confirm'])->name('transfers.confirm');
     Route::post('transfers/{transfer}/cancel',  [StockTransferController::class, 'cancel'])->name('transfers.cancel');
 
+    // ── HỦY HÀNG ───────────────────────────────────────────────────────
+    Route::get('scraps/stock-locations/{productId}', [ScrapController::class, 'stockLocations'])->name('scraps.stock-locations');
     Route::resource('scraps', ScrapController::class);
     Route::post('scraps/{scrap}/submit',  [ScrapController::class, 'submit'])->name('scraps.submit');
     Route::post('scraps/{scrap}/approve', [ScrapController::class, 'approve'])->name('scraps.approve');
+    Route::post('scraps/{scrap}/confirm', [ScrapController::class, 'confirm'])->name('scraps.confirm');
     Route::post('scraps/{scrap}/cancel',  [ScrapController::class, 'cancel'])->name('scraps.cancel');
+    Route::get('scraps/{scrap}/print',    [ScrapController::class, 'print'])->name('scraps.print');
 
     // ── KIỂM KÊ ───────────────────────────────────────────────────────
     Route::resource('stocktakes', InventoryCheckController::class);
@@ -209,6 +216,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('stocktakes/{stocktake}/unfreeze',  [InventoryCheckController::class, 'unfreeze'])->name('stocktakes.unfreeze');
     Route::delete('stocktakes/{stocktake}/cancel',  [InventoryCheckController::class, 'cancel'])->name('stocktakes.cancel');
 
+    // ── KIỂM KÊ ──────────────────────────────────────
     // Lines — cập nhật hàng loạt
     Route::post('stocktakes/{stocktake}/lines',     [InventoryCheckController::class, 'updateLines'])->name('stocktakes.lines.update');
 

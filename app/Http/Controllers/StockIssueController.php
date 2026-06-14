@@ -162,9 +162,12 @@ class StockIssueController extends Controller
     {
         $stocks = Stock::with(['location', 'lot', 'serial'])
             ->where('product_id', $productId)
+            ->whereHas('location', function ($q) {
+                $q->where('type', Location::TYPE_INTERNAL);
+            })
             ->where(function ($q) {
                 $q->where('available_qty', '>', 0)
-                  ->orWhereRaw('(quantity - reserved_qty) > 0');
+                ->orWhereRaw('(quantity - reserved_qty) > 0');
             })
             ->get()
             ->map(fn($s) => [
