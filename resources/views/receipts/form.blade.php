@@ -137,11 +137,11 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                             <th style="width:36px" class="text-center">#</th>
                             <th style="min-width:200px">Hàng hóa <span class="text-danger">*</span></th>
                             <th style="width:80px">ĐVT</th>
-                            <th style="width:100px">SL dự kiến <span class="text-danger">*</span></th>
-                            <th style="width:100px">SL thực nhận</th>
+                            <th style="width:120px">SL dự kiến <span class="text-danger">*</span></th>
+                            <th style="width:120px">SL thực nhận</th>
                             <th style="width:140px">Vị trí kho</th>
                             <th style="width:120px">
-                                Số Lot/Batch
+                                Số Lot
                                 <svg class="icon icon-sm text-body-secondary"
                                     title="Bắt buộc với hàng theo Lô hoặc Lô+Serial">
                                     <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}">
@@ -182,8 +182,8 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                         $tracking = (int) ($product->tracking_type ?? 1);
                         $uomId = $detail['uom_id'] ?? ($product->uom_id ?? '');
                         $uomName = $product->uom?->name ?? '—';
-                        $expectedQty = $detail['expected_qty'] ?? '';
-                        $actualQty = $detail['actual_qty'] ?? '';
+                        $expectedQty = isset($detail['expected_qty']) ? $detail['expected_qty'] + 0 : '';
+                        $actualQty = isset($detail['actual_qty']) ? $detail['actual_qty'] + 0 : '';
                         $locationId = $detail['location_id'] ?? '';
                         $lotNumber = $detail['lot_number'] ?? '';
                         $serialNumber = $detail['serial_number'] ?? '';
@@ -195,8 +195,8 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                         $tracking = (int) ($product->tracking_type ?? 1);
                         $uomId = $detail->uom_id;
                         $uomName = $detail->uom?->name ?? '—';
-                        $expectedQty = $detail->expected_qty;
-                        $actualQty = $detail->actual_qty;
+                        $expectedQty = $detail->expected_qty + 0;
+                        $actualQty = $detail->actual_qty + 0;
                         $locationId = $detail->location_id;
                         $lotNumber = $detail->lot?->lot_number ?? '';
                         $serialNumber = $detail->serial?->serial_number ?? '';
@@ -229,7 +229,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                             <td>
                                 <input type="number" class="form-control form-control-sm text-end"
                                     name="details[{{ $i }}][expected_qty]" value="{{ $expectedQty }}" min="0.001"
-                                    step="0.001" required oninput="updateTotals()">
+                                    step="0.001" required oninput="updateTotals()" onchange="onExpectedQtyChange(this)">
                             </td>
                             <td>
                                 <input type="number" class="form-control form-control-sm text-end actual-qty-input"
@@ -300,9 +300,8 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
             </div>
         </div>
 
-        <div class="card-footer py-2 text-body-secondary small d-flex justify-content-between align-items-center">
+        <div class="card-footer py-2 text-body-secondary small">
             <span>Tổng dòng: <strong id="rowCount">{{ $isEdit ? $receipt->details->count() : 0 }}</strong></span>
-            <span>Tổng SL dự kiến: <strong id="totalExpected">0</strong></span>
         </div>
     </div>
 
@@ -474,6 +473,9 @@ function onExpectedQtyChange(input) {
 
         const newSel = newTr.querySelector('.product-select');
         newSel.value = prodVal;
+        // Sync selected option rồi mới gọi onProductChange
+        const targetOpt = Array.from(newSel.options).find(o => o.value === prodVal);
+        if (targetOpt) targetOpt.selected = true;
         onProductChange(newSel);
 
         newTr.querySelector('select[name$="[location_id]"]').value = locVal;
@@ -578,13 +580,14 @@ function toggleEmptyState() {
 }
 
 function updateTotals() {
+    const el = document.getElementById('totalExpected');
+    if (!el) return;
     let total = 0;
     document.querySelectorAll('input[name$="[expected_qty]"]').forEach(inp => total += parseFloat(inp.value) || 0);
-    document.getElementById('totalExpected').textContent =
-        total.toLocaleString('vi-VN', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 3
-        });
+    el.textContent = total.toLocaleString('vi-VN', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 3
+    });
 }
 
 function clearFieldError(input) {
@@ -651,6 +654,33 @@ function validateLotSerial() {
         }
     });
 
+    // ── Bước 3: LotAndSerial — các dòng cùng product phải dùng cùng 1 lot ──
+    const lotMap = {}; // { product_id: { lot_value: rowIndex } }
+    document.querySelectorAll('#detailBody tr').forEach((tr, i) => {
+        const sel = tr.querySelector('.product-select');
+        const opt = sel?.options[sel.selectedIndex];
+        const tracking = parseInt(opt?.dataset?.tracking) || TRACKING_NONE;
+        if (tracking !== TRACKING_LOT_AND_SERIAL) return;
+
+        const productId = sel?.value;
+        const lotInput = tr.querySelector('.lot-input');
+        const lotVal = lotInput?.value.trim();
+        if (!productId || !lotVal) return;
+
+        if (!lotMap[productId]) lotMap[productId] = null;
+
+        if (lotMap[productId] === null) {
+            lotMap[productId] = {
+                value: lotVal,
+                row: i
+            };
+        } else if (lotMap[productId].value !== lotVal) {
+            lotInput.classList.add('is-invalid');
+            const firstRow = lotMap[productId].row + 1;
+            errors.push(`Nhiều serial trong cùng 1 lô thì nhập cùng mã lot.`);
+        }
+    });
+
     return errors;
 }
 
@@ -660,19 +690,11 @@ document.getElementById('receiptForm').addEventListener('submit', function(e) {
 
     e.preventDefault();
     const container = document.getElementById('lotSerialAlertContainer');
-    const hasSerialDup = errors.some(msg => msg.includes('đã nhập ở dòng'));
-    const hasLotSerial = errors.some(msg => !msg.includes('đã nhập ở dòng'));
-    let message = '';
-    if (hasSerialDup && !hasLotSerial) {
-        message = 'Số Serial bị trùng trong phiếu.';
-    } else if (hasSerialDup && hasLotSerial) {
-        message = 'Chưa nhập đủ thông tin Lot / Serial và có Số Serial bị trùng.';
-    } else {
-        message = 'Chưa nhập đủ thông tin Lot / Serial.';
-    }
+    const ul = errors.map(msg => `<li>${msg}</li>`).join('');
     container.innerHTML = `
         <div class="alert alert-danger alert-dismissible mx-3 mt-3 mb-0" role="alert">
-            <strong>${message}</strong>
+            <strong>Vui lòng kiểm tra lại thông tin Lot / Serial:</strong>
+            <ul class="mb-0 mt-1">${ul}</ul>
             <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
         </div>`;
     container.scrollIntoView({

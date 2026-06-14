@@ -121,7 +121,7 @@ $action = $isEdit ? route('transfers.update', $transfer->id) : route('transfers.
                             <th style="width:130px">Vị trí nguồn <span class="text-danger">*</span></th>
                             <th style="width:130px">Vị trí đích <span class="text-danger">*</span></th>
                             <th style="width:110px">
-                                Số Lot/Batch
+                                Số Lot
                                 <svg class="icon icon-sm text-body-secondary" title="Tự điền khi chọn vị trí nguồn">
                                     <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}">
                                     </use>
@@ -203,8 +203,17 @@ $action = $isEdit ? route('transfers.update', $transfer->id) : route('transfers.
                                     value="{{ $detail->lot_id }}">
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm serial-display" readonly
-                                    placeholder="—" value="{{ $detail->serial?->serial_number ?? '' }}">
+                                <div class="d-flex align-items-center gap-1">
+                                    <input type="text" class="form-control form-control-sm serial-display flex-grow-1"
+                                        readonly placeholder="—" value="{{ $detail->serial?->serial_number ?? '' }}">
+                                    <span class="text-danger serial-dup-icon d-none" title="Trùng số serial!">
+                                        <svg class="icon icon-sm">
+                                            <use
+                                                xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-warning') }}">
+                                            </use>
+                                        </svg>
+                                    </span>
+                                </div>
                                 <input type="hidden" class="serial-id-hidden" name="details[{{ $i }}][serial_id]"
                                     value="{{ $detail->serial_id }}">
                             </td>
@@ -256,6 +265,14 @@ $action = $isEdit ? route('transfers.update', $transfer->id) : route('transfers.
             <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-warning') }}"></use>
         </svg>
         <strong>Cảnh báo:</strong> Một số dòng có vị trí nguồn và vị trí đích giống nhau.
+    </div>
+    {{-- Cảnh báo serial trùng --}}
+    <div class="alert alert-danger alert-dismissible d-none mt-2" id="serialDupAlert" role="alert">
+        <svg class="icon me-1">
+            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-warning') }}"></use>
+        </svg>
+        <strong>Có số Serial bị trùng giữa các dòng.</strong> Vui lòng kiểm tra các ô được đánh dấu đỏ.
+        <button type="button" class="btn-close" data-coreui-dismiss="alert" aria-label="Close"></button>
     </div>
     {{-- ── NÚT LƯU ── --}}
     <div class="d-flex gap-2 justify-content-end mt-3">
@@ -364,7 +381,12 @@ function rowTemplate(i) {
       <input type="hidden" class="lot-id-hidden" name="details[${i}][lot_id]" value="">
     </td>
     <td>
-      <input type="text" class="form-control form-control-sm serial-display" readonly placeholder="—" value="">
+      <div class="d-flex align-items-center gap-1">
+        <input type="text" class="form-control form-control-sm serial-display flex-grow-1" readonly placeholder="—" value="">
+        <span class="text-danger serial-dup-icon d-none" title="Trùng số serial!">
+          <svg class="icon icon-sm"><use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-warning') }}"></use></svg>
+        </span>
+      </div>
       <input type="hidden" class="serial-id-hidden" name="details[${i}][serial_id]" value="">
     </td>
     <td>
@@ -616,6 +638,9 @@ function onFromLocationChange(sel) {
     serialHidden.value = serialId;
     if (lotDisplay) lotDisplay.value = lotNumber || '';
     if (serialDisplay) serialDisplay.value = serialNumber || '';
+    // Xóa trạng thái lỗi trùng serial khi chọn lại vị trí nguồn
+    tr.querySelector('.serial-display')?.classList.remove('is-invalid');
+    tr.querySelector('.serial-dup-icon')?.classList.add('d-none');
 }
 
 // ── Nếu hàng serial-tracking và SL > 1 → tách thành nhiều dòng (mỗi dòng = 1 serial) ──
@@ -667,11 +692,14 @@ function checkAllLocationPairs() {
 // ── Chặn submit nếu trùng Serial giữa các dòng ──────────────────
 document.getElementById('transferForm')?.addEventListener('submit', function(e) {
     // Reset trạng thái lỗi cũ
-    document.querySelectorAll('#detailBody .lot-serial-display.is-invalid')
+    document.querySelectorAll('#detailBody .serial-display.is-invalid')
         .forEach(el => el.classList.remove('is-invalid'));
+    document.querySelectorAll('#detailBody .serial-dup-icon')
+        .forEach(el => el.classList.add('d-none'));
+    document.getElementById('serialDupAlert')?.classList.add('d-none');
 
     // Gom nhóm theo serial_id
-    const groups = new Map(); // serial_id -> [tr, tr, ...]
+    const groups = new Map();
     document.querySelectorAll('#detailBody tr').forEach(tr => {
         const serialId = tr.querySelector('.serial-id-hidden')?.value;
         if (!serialId) return;
@@ -684,24 +712,22 @@ document.getElementById('transferForm')?.addEventListener('submit', function(e) 
         if (rows.length > 1) {
             hasDup = true;
             rows.forEach(tr => {
-                tr.querySelector('.lot-serial-display')?.classList.add('is-invalid');
+                tr.querySelector('.serial-display')?.classList.add('is-invalid');
+                tr.querySelector('.serial-dup-icon')?.classList.remove('d-none');
             });
         }
     });
 
     if (hasDup) {
         e.preventDefault();
-        const container = document.getElementById('formAlerts') || document.querySelector('.col-lg-8 .card');
-        const alertHtml = `
-            <div class="alert alert-danger alert-dismissible mx-3 mt-3 mb-0" role="alert">
-                <strong>Có số Serial bị trùng giữa các dòng. Vui lòng kiểm tra các ô được đánh dấu đỏ.</strong>
-                <button type="button" class="btn-close" data-coreui-dismiss="alert"></button>
-            </div>`;
-        container.insertAdjacentHTML('afterbegin', alertHtml);
-        document.querySelector('.lot-serial-display.is-invalid')?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest'
-        });
+        const dupAlert = document.getElementById('serialDupAlert');
+        if (dupAlert) {
+            dupAlert.classList.remove('d-none');
+            dupAlert.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest'
+            });
+        }
     }
 });
 

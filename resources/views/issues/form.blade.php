@@ -113,19 +113,6 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                     @error('expected_return_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
 
-                @if($isEdit)
-                <div class="col-md-2">
-                    <label class="form-label form-label-sm mb-1">Trạng thái</label>
-                    <select class="form-select form-select-sm" name="status">
-                        <option value="1" {{ ($issue->status ?? 1) == 1 ? 'selected' : '' }}>Nháp</option>
-                        <option value="2" {{ ($issue->status ?? 1) == 2 ? 'selected' : '' }}>Chờ duyệt</option>
-                        <option value="3" {{ ($issue->status ?? 1) == 3 ? 'selected' : '' }}>Đã duyệt</option>
-                        <option value="4" {{ ($issue->status ?? 1) == 4 ? 'selected' : '' }}>Hoàn thành</option>
-                        <option value="5" {{ ($issue->status ?? 1) == 5 ? 'selected' : '' }}>Đã hủy</option>
-                    </select>
-                </div>
-                @endif
-
                 <div class="col-md-2">
                     <label class="form-label form-label-sm mb-1">Ghi chú</label>
                     <input type="text" class="form-control form-control-sm" name="note"
@@ -163,7 +150,7 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                             <th style="width:100px">ĐVT</th>
                             <th style="width:110px">Số lượng <span class="text-danger">*</span></th>
                             <th style="width:130px">Vị trí kho <span class="text-danger">*</span></th>
-                            <th style="width:110px">Số Lot / Batch</th>
+                            <th style="width:110px">Số Lot</th>
                             <th style="width:120px">Số Serial</th>
                             <th style="width:90px">Tồn hiện</th>
                             <th style="width:200px">Ghi chú</th>
@@ -482,6 +469,7 @@ window.onProductChange = function(sel) {
                         id: s.serial_id,
                         serial_number: s.serial_number,
                         available_qty: s.available_qty,
+                        lot_id: s.lot_id ? parseInt(s.lot_id) : null,
                     });
                 }
             });
@@ -549,20 +537,29 @@ window.onLocationChange = function(locationSel) {
             ` · Tồn: ${l.available_qty.toLocaleString('vi-VN')}</option>`
         ).join('');
 
-    // Số Serial
-    serialSel.innerHTML = '<option value="">— Không chọn —</option>' +
-        serials.map(s =>
-            `<option value="${s.id}">${s.serial_number} · Tồn: ${s.available_qty.toLocaleString('vi-VN')}</option>`
-        ).join('');
+    const tracking = parseInt(tr.dataset.tracking) || 1;
+
+    if (tracking === 4) {
+        // LotAndSerial: serial phụ thuộc vào lot → để trống, chờ chọn lot
+        serialSel.innerHTML = '<option value="">— Chọn lot trước —</option>';
+    } else {
+        // Tracking khác: hiện tất cả serial
+        serialSel.innerHTML = '<option value="">— Không chọn —</option>' +
+            serials.map(s =>
+                `<option value="${s.id}">${s.serial_number} · Tồn: ${s.available_qty.toLocaleString('vi-VN')}</option>`
+            ).join('');
+    }
 
     // Tự động chọn nếu chỉ có đúng 1 lot
     if (lots.length === 1) {
         lotSel.selectedIndex = 1;
         if (lotHidden) lotHidden.value = lots[0].id;
-        lotSel.dispatchEvent(new Event('change'));
+        lotSel.dispatchEvent(new Event('change', {
+            bubbles: true
+        })); // ← trigger filter serial cho tracking=4
     }
-    // Tự động chọn nếu chỉ có đúng 1 serial
-    if (serials.length === 1) {
+    // Tự động chọn nếu chỉ có đúng 1 serial (chỉ áp dụng tracking != 4)
+    if (tracking !== 4 && serials.length === 1) {
         serialSel.selectedIndex = 1;
         if (serialHidden) serialHidden.value = serials[0].id;
         serialSel.dispatchEvent(new Event('change'));
@@ -615,6 +612,7 @@ function initExistingRow(tr) {
                         id: s.serial_id,
                         serial_number: s.serial_number,
                         available_qty: s.available_qty,
+                        lot_id: s.lot_id ? parseInt(s.lot_id) : null,
                     });
                 }
             });
@@ -676,16 +674,27 @@ function initExistingRow(tr) {
                         ` · Tồn: ${l.available_qty.toLocaleString('vi-VN')}</option>`
                     ).join('');
 
-                serialSel.innerHTML = '<option value="">— Không chọn —</option>' +
-                    serials.map(s =>
-                        `<option value="${s.id}">${s.serial_number} · Tồn: ${s.available_qty.toLocaleString('vi-VN')}</option>`
-                    ).join('');
+                const tracking = parseInt(tr.dataset.tracking) || 1;
+
+                if (tracking === 4) {
+                    // tracking=4 (LotAndSerial): serial phụ thuộc lot → để trống, chờ dispatch lot change
+                    serialSel.innerHTML = '<option value="">— Chọn lot trước —</option>';
+                } else {
+                    serialSel.innerHTML = '<option value="">— Không chọn —</option>' +
+                        serials.map(s =>
+                            `<option value="${s.id}">${s.serial_number} · Tồn: ${s.available_qty.toLocaleString('vi-VN')}</option>`
+                        ).join('');
+                }
 
                 if (currentLotId) {
                     lotSel.value = currentLotId;
                     if (lotHidden) lotHidden.value = currentLotId;
+                    // Dispatch change để trigger filter serial (phải bubble để delegated listener bắt được)
+                    lotSel.dispatchEvent(new Event('change', {
+                        bubbles: true
+                    }));
                 }
-                if (currentSerialId) {
+                if (tracking !== 4 && currentSerialId) {
                     serialSel.value = currentSerialId;
                     if (serialHidden) serialHidden.value = currentSerialId;
                 }
@@ -706,7 +715,40 @@ document.addEventListener('change', function(e) {
     if (e.target.classList.contains('lot-select')) {
         const tr = e.target.closest('tr');
         const lotHidden = tr.querySelector('.lot-id-hidden');
+        const serialSel = tr.querySelector('.serial-select');
+        const serialHidden = tr.querySelector('.serial-id-hidden');
+        const selectedLotId = parseInt(e.target.value) || null;
+
         if (lotHidden) lotHidden.value = e.target.value;
+
+        // Reset serial khi đổi lot
+        if (serialHidden) serialHidden.value = '';
+
+        // Lọc serial theo lot vừa chọn (tracking=4)
+        const tracking = parseInt(tr.dataset.tracking) || 1;
+        if (tracking === 4 && serialSel) {
+            const locationSel = tr.querySelector('.location-select');
+            const locationId = parseInt(locationSel?.value) || null;
+            const stockMap = tr.dataset.stockMap ? JSON.parse(tr.dataset.stockMap) : {};
+            const allSerials = stockMap[locationId]?.serials || [];
+
+            // Mỗi serial trong stockMap cần có lot_id — xem phần AJAX endpoint bên dưới
+            const filtered = selectedLotId ?
+                allSerials.filter(s => s.lot_id === selectedLotId) :
+                allSerials;
+
+            serialSel.innerHTML = '<option value="">— Chọn serial —</option>' +
+                filtered.map(s =>
+                    `<option value="${s.id}">${s.serial_number} · Tồn: ${s.available_qty.toLocaleString('vi-VN')}</option>`
+                ).join('');
+            serialSel.disabled = false;
+
+            // Tự động chọn nếu chỉ còn 1 serial
+            if (filtered.length === 1) {
+                serialSel.selectedIndex = 1;
+                if (serialHidden) serialHidden.value = filtered[0].id;
+            }
+        }
     }
     if (e.target.classList.contains('serial-select')) {
         const tr = e.target.closest('tr');

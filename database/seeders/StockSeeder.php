@@ -119,20 +119,50 @@ class StockSeeder extends Seeder
         $nearExpLots = DB::table('lots')->where('lot_number', 'like', '%-NEAREXP')->get();
 
         foreach ($nearExpLots as $lot) {
-            $this->upsertStock([
-                'product_id'       => $lot->product_id,
-                'location_id'      => $locShA1,
-                'lot_id'           => $lot->id,
-                'serial_id'        => null,
-                'quantity'         => 10.000,
-                'reserved_qty'     => 0.000,
-                'supplier_id'      => $lot->supplier_id,
-                'manufacture_date' => $lot->manufacture_date,
-                'received_date'    => $lot->received_date,
-                'expiry_date'      => $lot->expiry_date,
-                'status'           => 1,
-                'updated_at'       => $now,
-            ]);
+            $product  = $products->firstWhere('id', $lot->product_id);
+            $tracking = (int) ($product->tracking_type ?? 1);
+
+            if ($tracking === 4) {
+                // tracking=4: 1 dòng stock / serial, kèm lot_id (giống section 4)
+                $serials = DB::table('serials')
+                    ->where('product_id', $lot->product_id)
+                    ->where('lot_id', $lot->id)
+                    ->where('status', 1)
+                    ->get();
+
+                foreach ($serials as $serial) {
+                    $this->upsertStock([
+                        'product_id'       => $lot->product_id,
+                        'location_id'      => $locShA1,
+                        'lot_id'           => $lot->id,
+                        'serial_id'        => $serial->id,
+                        'quantity'         => 1.000,
+                        'reserved_qty'     => 0.000,
+                        'supplier_id'      => $lot->supplier_id,
+                        'manufacture_date' => $serial->manufacture_date,
+                        'received_date'    => $serial->received_date,
+                        'expiry_date'      => $serial->expiry_date,
+                        'status'           => 1,
+                        'updated_at'       => $now,
+                    ]);
+                }
+            } else {
+                // tracking=2: lot-level, không có serial
+                $this->upsertStock([
+                    'product_id'       => $lot->product_id,
+                    'location_id'      => $locShA1,
+                    'lot_id'           => $lot->id,
+                    'serial_id'        => null,
+                    'quantity'         => 10.000,
+                    'reserved_qty'     => 0.000,
+                    'supplier_id'      => $lot->supplier_id,
+                    'manufacture_date' => $lot->manufacture_date,
+                    'received_date'    => $lot->received_date,
+                    'expiry_date'      => $lot->expiry_date,
+                    'status'           => 1,
+                    'updated_at'       => $now,
+                ]);
+            }
         }
     }
 

@@ -237,7 +237,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('transformations/{transformation}/confirm', [StockTransformationController::class, 'confirm'])->name('transformations.confirm');
     Route::post('transformations/{transformation}/cancel',  [StockTransformationController::class, 'cancel'])->name('transformations.cancel');
     Route::get('transformations/{transformation}/print',    [StockTransformationController::class, 'print'])->name('transformations.print');
-    
+
     // ── TỒN KHO ───────────────────────────────────────────────────────
     Route::prefix('inventory')->name('inventory.')->group(function () {
         Route::get('/',              [InventoryController::class, 'index'])->name('index');

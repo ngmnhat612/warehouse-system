@@ -160,6 +160,9 @@ class StockIssueController extends Controller
     // ──────────────────────────────────────────────────────────────────────────
     public function stockLocations(int $productId)
     {
+        $product  = Product::find($productId);
+        $tracking = (int) ($product?->tracking_type ?? 1);
+
         $stocks = Stock::with(['location', 'lot', 'serial'])
             ->where('product_id', $productId)
             ->whereHas('location', function ($q) {
@@ -169,8 +172,12 @@ class StockIssueController extends Controller
                 $q->where('available_qty', '>', 0)
                 ->orWhereRaw('(quantity - reserved_qty) > 0');
             })
-            ->get()
-            ->map(fn($s) => [
+            ->get();
+
+        $result = collect();
+
+        foreach ($stocks as $s) {
+            $baseRow = [
                 'location_id'   => $s->location_id,
                 'location_code' => $s->location?->code ?? '?',
                 'location_name' => $s->location?->name ?? '',
@@ -180,9 +187,34 @@ class StockIssueController extends Controller
                 'serial_id'     => $s->serial_id,
                 'serial_number' => $s->serial?->serial_number,
                 'available_qty' => (float) $s->available_qty,
-            ]);
+            ];
 
-        return response()->json($stocks);
+            // Tracking=4 (LotAndSerial): nếu stock lưu theo lot-level (serial_id = null)
+            // → mở rộng thành từng serial riêng từ bảng serials
+            if ($tracking === Product::TRACKING_LOT_AND_SERIAL
+                && $s->lot_id
+                && ! $s->serial_id
+            ) {
+                $serials = \App\Models\Serial::where('product_id', $productId)
+                    ->where('lot_id', $s->lot_id)
+                    ->where('status', \App\Models\Serial::STATUS_INSTOCK)
+                    ->get();
+
+                if ($serials->isNotEmpty()) {
+                    foreach ($serials as $serial) {
+                        $result->push(array_merge($baseRow, [
+                            'serial_id'     => $serial->id,
+                            'serial_number' => $serial->serial_number,
+                        ]));
+                    }
+                    continue; // bỏ qua dòng lot-level gốc
+                }
+            }
+
+            $result->push($baseRow);
+        }
+
+        return response()->json($result->values());
     }
 
     // ──────────────────────────────────────────────────────────────────────────
