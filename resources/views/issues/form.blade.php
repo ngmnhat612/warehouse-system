@@ -163,7 +163,7 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
                             <th style="width:100px">ĐVT</th>
                             <th style="width:110px">Số lượng <span class="text-danger">*</span></th>
                             <th style="width:130px">Vị trí kho <span class="text-danger">*</span></th>
-                            <th style="width:110px">Số Lot / Batch</th>
+                            <th style="width:110px">Số Lot</th>
                             <th style="width:120px">Số Serial</th>
                             <th style="width:90px">Tồn hiện</th>
                             <th style="width:200px">Ghi chú</th>

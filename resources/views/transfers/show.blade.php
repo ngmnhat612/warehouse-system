@@ -183,158 +183,186 @@ $transferStatus = (int) $transfer->status;
 </div>
 </div>
 
-<div class="row g-4">
-
-    {{-- CỘT TRÁI: Thông tin phiếu --}}
-    <div class="col-lg-4">
-        <div class="card">
-            <div class="card-header fw-semibold">
-                <svg class="icon me-1 text-primary">
-                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-description') }}"></use>
-                </svg>
-                Thông tin phiếu
-            </div>
-            <div class="card-body">
-                <dl class="row mb-0 small">
-                    <dt class="col-sm-5 text-body-secondary">Mã phiếu</dt>
-                    <dd class="col-sm-7 fw-semibold">{{ $transfer->code }}</dd>
-
-                    <dt class="col-sm-5 text-body-secondary">Loại chuyển</dt>
-                    <dd class="col-sm-7">{{ $typeLabels[$transfer->transfer_type] ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-body-secondary">Ngày chuyển</dt>
-                    <dd class="col-sm-7">{{ $transfer->transfer_date?->format('d/m/Y') ?? '—' }}</dd>
-
-                    <dt class="col-sm-5 text-body-secondary">Trạng thái</dt>
-                    <dd class="col-sm-7">
-                        <span
-                            class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }}-emphasis border border-{{ $statusColor }}-subtle rounded-pill">
-                            {{ $statusText }}
-                        </span>
-                    </dd>
-
-                    <dt class="col-sm-5 text-body-secondary">Người tạo</dt>
-                    <dd class="col-sm-7">{{ $transfer->createdBy?->name ?? '—' }}</dd>
-
-                    @if($transfer->approvedBy)
-                    <dt class="col-sm-5 text-body-secondary">Người duyệt</dt>
-                    <dd class="col-sm-7">{{ $transfer->approvedBy->name }}</dd>
-                    @endif
-
-                    @if($transfer->confirmedBy)
-                    <dt class="col-sm-5 text-body-secondary">Người xác nhận</dt>
-                    <dd class="col-sm-7">{{ $transfer->confirmedBy->name }}</dd>
-                    @endif
-
-                    @if($transfer->note)
-                    <dt class="col-sm-5 text-body-secondary">Ghi chú</dt>
-                    <dd class="col-sm-7">{{ $transfer->note }}</dd>
-                    @endif
-                </dl>
-            </div>
-        </div>
-
-        @if($transferStatus === 4)
-        <div class="card mt-4 border-success">
-            <div class="card-body text-success d-flex align-items-center gap-2">
-                <svg class="icon icon-xl">
-                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use>
-                </svg>
-                <div>
-                    <div class="fw-semibold small">Đã cập nhật tồn kho</div>
-                    <div class="text-body-secondary small">Tổng kho không thay đổi — chỉ vị trí thay đổi.</div>
-                </div>
-            </div>
-        </div>
-        @endif
+{{-- THÔNG TIN PHIẾU --}}
+<div class="card mb-3">
+    <div class="card-header fw-semibold py-2">
+        <svg class="icon me-1 text-primary">
+            <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-description') }}"></use>
+        </svg>
+        Thông tin phiếu
     </div>
-
-    {{-- CỘT PHẢI: Chi tiết hàng hóa --}}
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-                <span>
-                    <svg class="icon me-1 text-primary">
-                        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use>
-                    </svg>
-                    Chi tiết hàng hóa
-                </span>
-                <span class="badge bg-primary-subtle text-primary-emphasis">
-                    {{ $transfer->details->count() }} dòng
+    <div class="card-body py-3">
+        <div class="row g-3 small">
+            <div class="col-md-2">
+                <div class="text-body-secondary mb-1">Mã phiếu</div>
+                <div class="fw-semibold">{{ $transfer->code }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-body-secondary mb-1">Loại chuyển</div>
+                <div>{{ $typeLabels[$transfer->transfer_type] ?? '—' }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-body-secondary mb-1">Ngày chuyển</div>
+                <div>{{ $transfer->transfer_date?->format('d/m/Y') ?? '—' }}</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-body-secondary mb-1">Trạng thái</div>
+                <span
+                    class="badge bg-{{ $statusColor }}-subtle text-{{ $statusColor }}-emphasis border border-{{ $statusColor }}-subtle rounded-pill">
+                    {{ $statusText }}
                 </span>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width:36px">#</th>
-                                <th>Hàng hóa</th>
-                                <th>ĐVT</th>
-                                <th class="text-end">Số lượng</th>
-                                <th>Vị trí nguồn</th>
-                                <th>Vị trí đích</th>
-                                <th>Lot / Batch</th>
-                                <th>Ghi chú</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($transfer->details as $i => $detail)
-                            <tr>
-                                <td class="text-center text-body-secondary small">{{ $i + 1 }}</td>
-                                <td>
-                                    <div class="fw-semibold small">{{ $detail->product?->name ?? '—' }}</div>
-                                    <div class="text-body-secondary small">{{ $detail->product?->code }}</div>
-                                </td>
-                                <td class="text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</td>
-                                <td class="text-end fw-semibold">{{ $fmt($detail->quantity) }}</td>
-                                <td>
-                                    <span
-                                        class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
-                                        {{ $detail->fromLocation?->code ?? '—' }}
-                                    </span>
-                                    @if($detail->fromLocation?->name)
-                                    <div class="text-body-secondary small">{{ $detail->fromLocation->name }}</div>
-                                    @endif
-                                </td>
-                                <td>
-                                    <span
-                                        class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">
-                                        {{ $detail->toLocation?->code ?? '—' }}
-                                    </span>
-                                    @if($detail->toLocation?->name)
-                                    <div class="text-body-secondary small">{{ $detail->toLocation->name }}</div>
-                                    @endif
-                                </td>
-                                <td class="text-body-secondary small">
-                                    {{ $detail->lot?->lot_number ?? ($detail->serial?->serial_number ?? '—') }}
-                                </td>
-                                <td class="text-body-secondary small">{{ $detail->note ?? '—' }}</td>
-                            </tr>
-                            @empty
-                            <tr>
-                                <td colspan="8" class="text-center text-body-secondary py-4">Không có dòng chi tiết.
-                                </td>
-                            </tr>
-                            @endforelse
-                        </tbody>
-                        @if($transfer->details->count())
-                        <tfoot class="table-light">
-                            <tr>
-                                <td colspan="7" class="text-end fw-semibold small text-body-secondary">
-                                    Tổng cộng: <span class="fw-bold text-body">{{ $transfer->details->count() }} mặt
-                                        hàng</span>
-                                </td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
+            <div class="col-md-2">
+                <div class="text-body-secondary mb-1">Người tạo</div>
+                <div>{{ $transfer->createdBy?->name ?? '—' }}</div>
+            </div>
+            @if($transfer->approvedBy)
+            <div class="col-md-2">
+                <div class="text-body-secondary mb-1">Người duyệt</div>
+                <div>{{ $transfer->approvedBy->name }}</div>
+            </div>
+            @endif
+            @if($transfer->confirmedBy)
+            <div class="col-md-2">
+                <div class="text-body-secondary mb-1">Người xác nhận</div>
+                <div>{{ $transfer->confirmedBy->name }}</div>
+            </div>
+            @endif
+            @if($transfer->note)
+            <div class="col-12">
+                <div class="text-body-secondary mb-1">Ghi chú</div>
+                <div>{{ $transfer->note }}</div>
+            </div>
+            @endif
+        </div>
+    </div>
+</div>
+
+@if($transferStatus === 4)
+<div class="alert alert-success d-flex align-items-center gap-2 mb-3">
+    <svg class="icon">
+        <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-check-circle') }}"></use>
+    </svg>
+    <span class="small fw-semibold">Tổng kho không thay đổi — chỉ vị trí thay đổi.</span>
+</div>
+@endif
+
+{{-- CHI TIẾT HÀNG HÓA --}}
+<div class="card mb-3">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center py-2">
+        <span>
+            <svg class="icon me-1 text-primary">
+                <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-list') }}"></use>
+            </svg>
+            Chi tiết hàng hóa
+        </span>
+        <span class="badge bg-primary-subtle text-primary-emphasis">
+            {{ $transfer->details->count() }} dòng
+        </span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                @php
+                $hasLot = $transfer->details->contains(fn($d) => in_array((int)($d->product?->tracking_type ??
+                1), [2,4]));
+                $hasSerial = $transfer->details->contains(fn($d) => in_array((int)($d->product?->tracking_type
+                ?? 1), [3,4]));
+                @endphp
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:36px" class="text-center">#</th>
+                        <th>Hàng hóa</th>
+                        <th style="width:70px">ĐVT</th>
+                        <th style="width:100px" class="text-end">Số lượng</th>
+                        <th style="width:110px">Vị trí nguồn</th>
+                        <th style="width:110px">Vị trí đích</th>
+                        <th style="width:120px">Tracking</th>
+                        @if($hasLot)
+                        <th style="width:120px">Số Lot/Batch</th>
                         @endif
-                    </table>
-                </div>
-            </div>
+                        @if($hasSerial)
+                        <th style="width:120px">Số Serial</th>
+                        @endif
+                        <th>Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($transfer->details as $i => $detail)
+                    @php
+                    $tracking = (int)($detail->product?->tracking_type ?? 1);
+                    $trackingLabel = [1=>'—', 2=>'Lô', 3=>'Serial', 4=>'Lô+Serial'][$tracking] ?? '—';
+                    $trackingColor = [1=>'secondary', 2=>'info', 3=>'warning', 4=>'primary'][$tracking] ??
+                    'secondary';
+                    @endphp
+                    <tr>
+                        <td class="text-center text-body-secondary small">{{ $i + 1 }}</td>
+                        <td>
+                            <div class="fw-semibold small">{{ $detail->product?->name ?? '—' }}</div>
+                            <div class="text-body-secondary" style="font-size:11px">
+                                {{ $detail->product?->code }}</div>
+                        </td>
+                        <td class="text-body-secondary small">{{ $detail->uom?->name ?? '—' }}</td>
+                        <td class="text-end fw-semibold small">{{ $fmt($detail->quantity) }}</td>
+                        <td>
+                            <span
+                                class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
+                                {{ $detail->fromLocation?->code ?? '—' }}
+                            </span>
+                            @if($detail->fromLocation?->name)
+                            <div class="text-body-secondary small">{{ $detail->fromLocation->name }}</div>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+                                {{ $detail->toLocation?->code ?? '—' }}
+                            </span>
+                            @if($detail->toLocation?->name)
+                            <div class="text-body-secondary small">{{ $detail->toLocation->name }}</div>
+                            @endif
+                        </td>
+                        <td>
+                            <span
+                                class="badge bg-{{ $trackingColor }}-subtle text-{{ $trackingColor }}-emphasis border border-{{ $trackingColor }}-subtle">
+                                {{ $trackingLabel }}
+                            </span>
+                        </td>
+                        @if($hasLot)
+                        <td class="small">
+                            @if($detail->lot)
+                            <span
+                                class="badge bg-info-subtle text-info-emphasis border border-info-subtle font-monospace">
+                                {{ $detail->lot->lot_number }}
+                            </span>
+                            @else
+                            <span class="text-body-secondary">—</span>
+                            @endif
+                        </td>
+                        @endif
+                        @if($hasSerial)
+                        <td class="small">
+                            @if($detail->serial)
+                            <span
+                                class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle font-monospace">
+                                {{ $detail->serial->serial_number }}
+                            </span>
+                            @else
+                            <span class="text-body-secondary">—</span>
+                            @endif
+                        </td>
+                        @endif
+                        <td class="text-body-secondary small">{{ $detail->note ?? '—' }}</td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="8" class="text-center text-body-secondary py-4">Không có dòng chi tiết.
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
-
 </div>
 
 {{-- MODAL DUYỆT PHIẾU --}}
