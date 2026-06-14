@@ -279,10 +279,6 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
         </svg>
         <strong>Cảnh báo:</strong> Một số dòng có số lượng xuất vượt quá tồn kho hiện tại.
     </div>
-    </div>
-
-    </div>
-
     {{-- ── NÚT LƯU ── --}}
     <div class="d-flex gap-2 justify-content-end mt-3">
         <a href="{{ route('issues.index') }}" class="btn btn-outline-secondary">Hủy</a>
@@ -300,6 +296,8 @@ $action = $isEdit ? route('issues.update', $issue->id) : route('issues.store');
             </svg>
             {{ $isEdit ? 'Cập nhật phiếu' : 'Lưu phiếu xuất' }}
         </button>
+    </div>
+    </div>
     </div>
 
 </form>

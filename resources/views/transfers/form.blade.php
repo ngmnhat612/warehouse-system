@@ -241,10 +241,6 @@ $action = $isEdit ? route('transfers.update', $transfer->id) : route('transfers.
         </svg>
         <strong>Cảnh báo:</strong> Một số dòng có vị trí nguồn và vị trí đích giống nhau.
     </div>
-    </div>
-
-    </div>
-
     {{-- ── NÚT LƯU ── --}}
     <div class="d-flex gap-2 justify-content-end mt-3">
         <a href="{{ route('transfers.index') }}" class="btn btn-outline-secondary">Hủy</a>
@@ -262,6 +258,8 @@ $action = $isEdit ? route('transfers.update', $transfer->id) : route('transfers.
             </svg>
             {{ $isEdit ? 'Cập nhật phiếu' : 'Lưu phiếu chuyển kho' }}
         </button>
+    </div>
+    </div>
     </div>
 
 </form>
