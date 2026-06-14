@@ -1,6 +1,6 @@
 # Warehouse System — Hướng dẫn khởi tạo môi trường
 
-Hệ thống quản lý kho cho **Ment Automation** — xây dựng trên Laravel 11 + SQL Server 2022.
+Hệ thống quản lý kho cho **Ment Automation** — xây dựng trên Laravel 12 + SQL Server 2022.
 
 Giao diện sử dụng template **[CoreUI Free Bootstrap Admin Template](https://github.com/coreui/coreui-free-bootstrap-admin-template)** (v5.x), tích hợp trực tiếp vào `public/vendor/coreui/` (không qua npm) để đảm bảo tính ổn định và dễ tuỳ biến.
 
@@ -31,6 +31,8 @@ cd warehouse-system
 ## Bước 2 — Khởi động SQL Server bằng Docker
 
 > ⚠️ Đảm bảo Docker Desktop đang chạy trước khi thực hiện bước này.
+
+> ⚠️ Mật khẩu SA mặc định trong `docker-compose.yml` là `Warehouse123@` (biến `MSSQL_SA_PASSWORD`). Dùng đúng giá trị này thay cho `your_password_here` ở các bước dưới, hoặc đổi trong `docker-compose.yml` trước khi `docker compose up -d`.
 
 > ⚠️ Nếu máy đã cài SQL Server trực tiếp trên Windows, cần tắt service trước để tránh xung đột port 1433:
 > - Mở **services.msc** → tìm **SQL Server (MSSQLSERVER)** → chuột phải → **Stop**
@@ -65,7 +67,7 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Mở file `.env`, cập nhật phần database:
+Mở file `.env`, cập nhật phần database (lưu ý: `.env.example` mặc định dùng `sqlite`, cần sửa thành `sqlsrv` và thêm các biến sau):
 
 ```env
 DB_CONNECTION=sqlsrv
@@ -99,6 +101,7 @@ docker exec -it warehouse-system-sqlserver-1 /opt/mssql-tools18/bin/sqlcmd \
 ```bash
 php artisan migrate
 php artisan db:seed
+php artisan storage:link
 ```
 
 ---
@@ -166,7 +169,7 @@ warehouse-system/
 │   ├── Models/               # Eloquent Models
 │   └── Services/             # Business logic
 ├── database/
-│   ├── migrations/           # 23 bảng theo thứ tự FK
+│   ├── migrations/           # 36 bảng theo thứ tự FK
 │   └── seeders/              # Dữ liệu mẫu
 ├── resources/
 │   └── views/
