@@ -137,11 +137,11 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                             <th style="width:36px" class="text-center">#</th>
                             <th style="min-width:200px">Hàng hóa <span class="text-danger">*</span></th>
                             <th style="width:80px">ĐVT</th>
-                            <th style="width:100px">SL dự kiến <span class="text-danger">*</span></th>
-                            <th style="width:100px">SL thực nhận</th>
+                            <th style="width:120px">SL dự kiến <span class="text-danger">*</span></th>
+                            <th style="width:120px">SL thực nhận</th>
                             <th style="width:140px">Vị trí kho</th>
                             <th style="width:120px">
-                                Số Lot/Batch
+                                Số Lot
                                 <svg class="icon icon-sm text-body-secondary"
                                     title="Bắt buộc với hàng theo Lô hoặc Lô+Serial">
                                     <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}">
@@ -182,8 +182,8 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                         $tracking = (int) ($product->tracking_type ?? 1);
                         $uomId = $detail['uom_id'] ?? ($product->uom_id ?? '');
                         $uomName = $product->uom?->name ?? '—';
-                        $expectedQty = $detail['expected_qty'] ?? '';
-                        $actualQty = $detail['actual_qty'] ?? '';
+                        $expectedQty = isset($detail['expected_qty']) ? $detail['expected_qty'] + 0 : '';
+                        $actualQty = isset($detail['actual_qty']) ? $detail['actual_qty'] + 0 : '';
                         $locationId = $detail['location_id'] ?? '';
                         $lotNumber = $detail['lot_number'] ?? '';
                         $serialNumber = $detail['serial_number'] ?? '';
@@ -195,8 +195,8 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                         $tracking = (int) ($product->tracking_type ?? 1);
                         $uomId = $detail->uom_id;
                         $uomName = $detail->uom?->name ?? '—';
-                        $expectedQty = $detail->expected_qty;
-                        $actualQty = $detail->actual_qty;
+                        $expectedQty = $detail->expected_qty + 0;
+                        $actualQty = $detail->actual_qty + 0;
                         $locationId = $detail->location_id;
                         $lotNumber = $detail->lot?->lot_number ?? '';
                         $serialNumber = $detail->serial?->serial_number ?? '';
@@ -229,7 +229,7 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
                             <td>
                                 <input type="number" class="form-control form-control-sm text-end"
                                     name="details[{{ $i }}][expected_qty]" value="{{ $expectedQty }}" min="0.001"
-                                    step="0.001" required oninput="updateTotals()">
+                                    step="0.001" required oninput="updateTotals()" onchange="onExpectedQtyChange(this)">
                             </td>
                             <td>
                                 <input type="number" class="form-control form-control-sm text-end actual-qty-input"
@@ -300,9 +300,8 @@ $action = $isEdit ? route('receipts.update', $receipt->id) : route('receipts.sto
             </div>
         </div>
 
-        <div class="card-footer py-2 text-body-secondary small d-flex justify-content-between align-items-center">
+        <div class="card-footer py-2 text-body-secondary small">
             <span>Tổng dòng: <strong id="rowCount">{{ $isEdit ? $receipt->details->count() : 0 }}</strong></span>
-            <span>Tổng SL dự kiến: <strong id="totalExpected">0</strong></span>
         </div>
     </div>
 
@@ -474,6 +473,9 @@ function onExpectedQtyChange(input) {
 
         const newSel = newTr.querySelector('.product-select');
         newSel.value = prodVal;
+        // Sync selected option rồi mới gọi onProductChange
+        const targetOpt = Array.from(newSel.options).find(o => o.value === prodVal);
+        if (targetOpt) targetOpt.selected = true;
         onProductChange(newSel);
 
         newTr.querySelector('select[name$="[location_id]"]').value = locVal;
@@ -578,13 +580,14 @@ function toggleEmptyState() {
 }
 
 function updateTotals() {
+    const el = document.getElementById('totalExpected');
+    if (!el) return;
     let total = 0;
     document.querySelectorAll('input[name$="[expected_qty]"]').forEach(inp => total += parseFloat(inp.value) || 0);
-    document.getElementById('totalExpected').textContent =
-        total.toLocaleString('vi-VN', {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 3
-        });
+    el.textContent = total.toLocaleString('vi-VN', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 3
+    });
 }
 
 function clearFieldError(input) {

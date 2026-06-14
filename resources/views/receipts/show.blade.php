@@ -257,7 +257,7 @@ in_array((int)($d->product?->tracking_type ?? 1), [2, 4])
                         <th>Hàng hóa</th>
                         <th style="width:70px">ĐVT</th>
                         <th style="width:100px" class="text-end">SL dự kiến</th>
-                        <th style="width:100px" class="text-end">SL thực nhận</th>
+                        <th style="width:150px" class="text-end">SL thực nhận</th>
                         <th style="width:110px">Vị trí kho</th>
                         <th style="width:120px">Tracking</th>
                         @if($hasLot)
@@ -387,22 +387,6 @@ in_array((int)($d->product?->tracking_type ?? 1), [2, 4])
         </tr>
         @endforelse
         </tbody>
-        @if($receipt->details->count())
-        <tfoot class="table-light">
-            <tr>
-                <td colspan="3" class="small text-body-secondary">
-                    {{ $receipt->details->count() }} dòng
-                </td>
-                <td class="text-end fw-semibold small">
-                    {{ $fmt($receipt->details->sum('expected_qty')) }}
-                </td>
-                <td class="text-end fw-semibold small text-success">
-                    {{ $fmt($receipt->details->sum('actual_qty')) }}
-                </td>
-                <td colspan="{{ 4 + ($hasLot ? 1 : 0) + ($hasSerial ? 1 : 0) }}"></td>
-            </tr>
-        </tfoot>
-        @endif
         </table>
     </div>
 </div>
