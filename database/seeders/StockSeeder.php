@@ -89,6 +89,51 @@ class StockSeeder extends Seeder
                 ]);
             }
         }
+
+        // ── 4. HÀNG LOT + SERIAL (tracking_type = 4) — 1 dòng stock / serial, kèm lot_id ──
+        foreach ($products->where('tracking_type', 4) as $p) {
+            $serials = DB::table('serials')
+                ->where('product_id', $p->id)
+                ->where('status', 1) // InStock
+                ->get();
+
+            foreach ($serials as $serial) {
+                $this->upsertStock([
+                    'product_id'       => $p->id,
+                    'location_id'      => $locShA2,
+                    'lot_id'           => $serial->lot_id,
+                    'serial_id'        => $serial->id,
+                    'quantity'         => 1.000,
+                    'reserved_qty'     => 0.000,
+                    'supplier_id'      => $sup1,
+                    'manufacture_date' => $serial->manufacture_date,
+                    'received_date'    => $serial->received_date,
+                    'expiry_date'      => $serial->expiry_date,
+                    'status'           => 1,
+                    'updated_at'       => $now,
+                ]);
+            }
+        }
+
+        // ── 5. LOT SẮP HẾT HẠN ("-NEAREXP") — stock số lượng nhỏ tại WH-SHELF-A1 ──
+        $nearExpLots = DB::table('lots')->where('lot_number', 'like', '%-NEAREXP')->get();
+
+        foreach ($nearExpLots as $lot) {
+            $this->upsertStock([
+                'product_id'       => $lot->product_id,
+                'location_id'      => $locShA1,
+                'lot_id'           => $lot->id,
+                'serial_id'        => null,
+                'quantity'         => 10.000,
+                'reserved_qty'     => 0.000,
+                'supplier_id'      => $lot->supplier_id,
+                'manufacture_date' => $lot->manufacture_date,
+                'received_date'    => $lot->received_date,
+                'expiry_date'      => $lot->expiry_date,
+                'status'           => 1,
+                'updated_at'       => $now,
+            ]);
+        }
     }
 
     private function upsertStock(array $row): void
