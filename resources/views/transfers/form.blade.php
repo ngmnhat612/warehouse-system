@@ -120,7 +120,20 @@ $action = $isEdit ? route('transfers.update', $transfer->id) : route('transfers.
                             <th style="width:110px">Số lượng <span class="text-danger">*</span></th>
                             <th style="width:130px">Vị trí nguồn <span class="text-danger">*</span></th>
                             <th style="width:130px">Vị trí đích <span class="text-danger">*</span></th>
-                            <th style="width:110px">Lot / Serial</th>
+                            <th style="width:110px">
+                                Số Lot/Batch
+                                <svg class="icon icon-sm text-body-secondary" title="Tự điền khi chọn vị trí nguồn">
+                                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}">
+                                    </use>
+                                </svg>
+                            </th>
+                            <th style="width:110px">
+                                Số Serial
+                                <svg class="icon icon-sm text-body-secondary" title="Tự điền khi chọn vị trí nguồn">
+                                    <use xlink:href="{{ asset('vendor/coreui/icons/sprites/free.svg#cil-info') }}">
+                                    </use>
+                                </svg>
+                            </th>
                             <th style="width:180px">Ghi chú</th>
                             <th style="width:36px"></th>
                         </tr>
@@ -184,11 +197,14 @@ $action = $isEdit ? route('transfers.update', $transfer->id) : route('transfers.
                                 </select>
                             </td>
                             <td>
-                                <input type="text" class="form-control form-control-sm lot-serial-display" readonly
-                                    placeholder="—"
-                                    value="{{ $detail->serial?->serial_number ?? $detail->lot?->lot_number ?? '' }}">
+                                <input type="text" class="form-control form-control-sm lot-display" readonly
+                                    placeholder="—" value="{{ $detail->lot?->lot_number ?? '' }}">
                                 <input type="hidden" class="lot-id-hidden" name="details[{{ $i }}][lot_id]"
                                     value="{{ $detail->lot_id }}">
+                            </td>
+                            <td>
+                                <input type="text" class="form-control form-control-sm serial-display" readonly
+                                    placeholder="—" value="{{ $detail->serial?->serial_number ?? '' }}">
                                 <input type="hidden" class="serial-id-hidden" name="details[{{ $i }}][serial_id]"
                                     value="{{ $detail->serial_id }}">
                             </td>
@@ -344,8 +360,11 @@ function rowTemplate(i) {
       </select>
     </td>
     <td>
-      <input type="text" class="form-control form-control-sm lot-serial-display" readonly placeholder="—" value="">
+      <input type="text" class="form-control form-control-sm lot-display" readonly placeholder="—" value="">
       <input type="hidden" class="lot-id-hidden" name="details[${i}][lot_id]" value="">
+    </td>
+    <td>
+      <input type="text" class="form-control form-control-sm serial-display" readonly placeholder="—" value="">
       <input type="hidden" class="serial-id-hidden" name="details[${i}][serial_id]" value="">
     </td>
     <td>
@@ -423,7 +442,10 @@ function onProductChange(sel) {
     if (!productId) {
         // Reset nếu chưa chọn sản phẩm
         if (fromSel) fromSel.innerHTML = '<option value="">— Nguồn —</option>';
-        if (display) display.value = '';
+        const lotDisplay = tr.querySelector('.lot-display');
+        const serialDisplay = tr.querySelector('.serial-display');
+        if (lotDisplay) lotDisplay.value = '';
+        if (serialDisplay) serialDisplay.value = '';
         if (lotHidden) lotHidden.value = '';
         if (serialHidden) serialHidden.value = '';
         return;
@@ -465,7 +487,10 @@ function onProductChange(sel) {
             }
 
             // Reset hiển thị Lot/Serial — sẽ được điền khi chọn vị trí nguồn
-            if (display) display.value = '';
+            const lotDisplay = tr.querySelector('.lot-display');
+            const serialDisplay = tr.querySelector('.serial-display');
+            if (lotDisplay) lotDisplay.value = '';
+            if (serialDisplay) serialDisplay.value = '';
             if (lotHidden) lotHidden.value = '';
             if (serialHidden) serialHidden.value = '';
 
@@ -573,11 +598,12 @@ function validateLocationPair(sel) {
 function onFromLocationChange(sel) {
     const tr = sel.closest('tr');
     const opt = sel.options[sel.selectedIndex];
-    const display = tr.querySelector('.lot-serial-display');
+    const lotDisplay = tr.querySelector('.lot-display');
+    const serialDisplay = tr.querySelector('.serial-display');
     const lotHidden = tr.querySelector('.lot-id-hidden');
     const serialHidden = tr.querySelector('.serial-id-hidden');
     const fromLocHidden = tr.querySelector('.from-location-id-hidden');
-    if (!display || !lotHidden || !serialHidden || !fromLocHidden) return;
+    if (!lotHidden || !serialHidden || !fromLocHidden) return;
 
     const locationId = opt?.dataset.locationId || '';
     const lotId = opt?.dataset.lotId || '';
@@ -588,7 +614,8 @@ function onFromLocationChange(sel) {
     fromLocHidden.value = locationId;
     lotHidden.value = lotId;
     serialHidden.value = serialId;
-    display.value = serialNumber || lotNumber || '';
+    if (lotDisplay) lotDisplay.value = lotNumber || '';
+    if (serialDisplay) serialDisplay.value = serialNumber || '';
 }
 
 // ── Nếu hàng serial-tracking và SL > 1 → tách thành nhiều dòng (mỗi dòng = 1 serial) ──
