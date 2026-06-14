@@ -123,28 +123,53 @@ class LotSerialSeeder extends Seeder
 
         foreach ($nearExpProducts as $p) {
             $lotNumber = "LOT-{$p->code}-NEAREXP";
+            $daysLeft  = max(1, (int) $p->alert_before_expiry - 5);
 
-            $exists = DB::table('lots')
+            $lotId = DB::table('lots')
                 ->where('product_id', $p->id)
                 ->where('lot_number', $lotNumber)
-                ->exists();
+                ->value('id');
 
-            if ($exists) continue;
+            if (! $lotId) {
+                $lotId = DB::table('lots')->insertGetId([
+                    'product_id'       => $p->id,
+                    'lot_number'       => $lotNumber,
+                    'supplier_id'      => $sup2,
+                    'manufacture_date' => $now->copy()->subMonths(6)->toDateString(),
+                    'received_date'    => $now->copy()->subMonths(5)->toDateString(),
+                    'expiry_date'      => $now->copy()->addDays($daysLeft)->toDateString(),
+                    'status'           => 1, // Active
+                    'created_at'       => $now,
+                    'updated_at'       => $now,
+                ]);
+            }
 
-            // Hết hạn trong vòng (alert_before_expiry - 5) ngày → rơi vào ngưỡng cảnh báo
-            $daysLeft = max(1, (int) $p->alert_before_expiry - 5);
+            // tracking=4: tạo thêm 2 serial gắn vào lot NEAREXP này
+            if ((int) $p->tracking_type === 4) {
+                for ($n = 1; $n <= 2; $n++) {
+                    $serialNumber = sprintf('SN-%s-NEAREXP-%03d', $p->code, $n);
 
-            DB::table('lots')->insert([
-                'product_id'       => $p->id,
-                'lot_number'       => $lotNumber,
-                'supplier_id'      => $sup2,
-                'manufacture_date' => $now->copy()->subMonths(6)->toDateString(),
-                'received_date'    => $now->copy()->subMonths(5)->toDateString(),
-                'expiry_date'      => $now->copy()->addDays($daysLeft)->toDateString(),
-                'status'           => 1, // Active
-                'created_at'       => $now,
-                'updated_at'       => $now,
-            ]);
+                    $exists = DB::table('serials')
+                        ->where('product_id', $p->id)
+                        ->where('serial_number', $serialNumber)
+                        ->exists();
+
+                    if (! $exists) {
+                        DB::table('serials')->insert([
+                            'product_id'       => $p->id,
+                            'serial_number'    => $serialNumber,
+                            'lot_id'           => $lotId,
+                            'supplier_id'      => $sup2,
+                            'manufacture_date' => $now->copy()->subMonths(6)->toDateString(),
+                            'received_date'    => $now->copy()->subMonths(5)->toDateString(),
+                            'expiry_date'      => $now->copy()->addDays($daysLeft)->toDateString(),
+                            'status'           => 1, // InStock
+                            'created_at'       => $now,
+                            'updated_at'       => $now,
+                        ]);
+                    }
+                }
+            }
         }
     }
 }
