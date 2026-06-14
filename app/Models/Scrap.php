@@ -16,6 +16,7 @@ class Scrap extends Model
 
     protected $casts = [
         'scrap_date' => 'date',
+        'status'     => 'integer',
     ];
 
     // status constants

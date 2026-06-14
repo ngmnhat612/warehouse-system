@@ -66,15 +66,23 @@ class Bom extends Model
      * - Vòng lặp trực tiếp: sản phẩm vừa là Consume vừa là Produce trong cùng 1 BOM.
      * - Vòng lặp gián tiếp: A Produce → B; B là Consume trong BOM khác mà BOM đó Produce → A.
      *
+     * Lưu ý: việc kiểm tra vòng lặp gián tiếp (Bước 2) chỉ xét các BOM CÙNG LOẠI
+     * ($bomType) với BOM đang kiểm tra. Điều này cho phép một BOM Tách (A → B + C)
+     * và BOM Ghép "đối xứng" (B + C → A) cùng tồn tại — vì đây là 2 chiều chuyển đổi
+     * hợp lệ, không phải vòng lặp sản xuất thật. Vòng lặp thật chỉ xảy ra khi nhiều
+     * BOM cùng loại (Tách-Tách hoặc Ghép-Ghép) tạo thành chu trình.
+     *
      * @param  array $produceProductIds  Danh sách product_id sẽ là đầu ra (Produce)
      * @param  array $consumeProductIds  Danh sách product_id sẽ là đầu vào (Consume)
      * @param  int|null $excludeBomId    BOM đang edit (bỏ qua chính nó khi duyệt graph)
+     * @param  int|null $bomType         Loại của BOM đang kiểm tra (TYPE_DISASSEMBLE/TYPE_ASSEMBLE) — chỉ xét graph cùng loại
      * @return array ['has_cycle' => bool, 'path' => string]
      */
     public static function detectCircularReference(
         array $produceProductIds,
         array $consumeProductIds,
-        ?int $excludeBomId = null
+        ?int $excludeBomId = null,
+        ?int $bomType = null
     ): array {
         // Bước 1: Kiểm tra vòng lặp trực tiếp trong cùng 1 BOM
         $overlap = array_intersect($produceProductIds, $consumeProductIds);
@@ -95,6 +103,7 @@ class Bom extends Model
             startProducts:   $consumeProductIds,
             targetProducts:  $produceProductIds,
             excludeBomId:    $excludeBomId,
+            bomType:         $bomType,
             visited:         [],
             path:            []
         );
@@ -116,6 +125,7 @@ class Bom extends Model
         array $startProducts,
         array $targetProducts,
         ?int  $excludeBomId,
+        ?int  $bomType,
         array $visited,
         array $path
     ): array {
@@ -141,11 +151,16 @@ class Bom extends Model
             }
 
             // Tìm tất cả BOM có product này là Produce → lấy các Consume của nó để đi tiếp
+            // CHỈ xét các BOM CÙNG LOẠI ($bomType) với BOM đang kiểm tra, vì
+            // BOM Tách và BOM Ghép "đối xứng" là 2 chiều chuyển đổi hợp lệ,
+            // không tạo thành vòng lặp sản xuất thật.
             $nextConsumes = BomDetail::query()
                 ->join('bom_details as consume', 'consume.bom_id', '=', 'bom_details.bom_id')
+                ->join('boms', 'boms.id', '=', 'bom_details.bom_id')
                 ->where('bom_details.line_type', BomDetail::TYPE_PRODUCE)
                 ->where('bom_details.product_id', $productId)
                 ->where('consume.line_type', BomDetail::TYPE_CONSUME)
+                ->when($bomType, fn($q) => $q->where('boms.type', $bomType))
                 ->when($excludeBomId, fn($q) => $q->where('bom_details.bom_id', '!=', $excludeBomId))
                 ->pluck('consume.product_id')
                 ->unique()
@@ -156,6 +171,7 @@ class Bom extends Model
                     startProducts:  $nextConsumes,
                     targetProducts: $targetProducts,
                     excludeBomId:   $excludeBomId,
+                    bomType:        $bomType,
                     visited:        $visited,
                     path:           $currentPath
                 );

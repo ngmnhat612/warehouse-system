@@ -46,6 +46,18 @@ class AdminSeeder extends Seeder
             'stocktake.create',
             'stocktake.adjust',
             'stocktake.unfreeze',
+
+            // Tách/ghép hàng hóa
+            'transformation.view',
+            'transformation.create',
+            'transformation.approve',
+            'transformation.confirm',
+
+            // Phiếu hủy hàng
+            'scrap.view',
+            'scrap.create',
+            'scrap.approve',
+            'scrap.confirm',
         ];
 
         foreach ($permissions as $perm) {
@@ -55,13 +67,17 @@ class AdminSeeder extends Seeder
         // Manager có tất cả
         $managerRole->syncPermissions($permissions);
 
-        // Staff không có approve/confirm
+        // Staff không có approve
         $staffRole->syncPermissions([
-            'receipt.view',   'receipt.create',
-            'issue.view',     'issue.create',
-            'transfer.view',  'transfer.create',
+            'receipt.view',         'receipt.create',
+            'issue.view',           'issue.create',
+            'transfer.view',        'transfer.create',
             'transfer.confirm',
             'stocktake.view',
+            'transformation.view',  'transformation.create',
+            'transformation.confirm',
+            'scrap.view',           'scrap.create',
+            'scrap.confirm',
         ]);
 
         // Tạo tài khoản admin mặc định

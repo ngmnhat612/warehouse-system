@@ -161,6 +161,14 @@
             onchange="toggleZero(this)">
           <label class="form-check-label small" for="showZeroToggle">Hiện hàng hết tồn</label>
         </div>
+
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="showVirtualToggle"
+            {{ request('show_virtual') ? 'checked' : '' }}
+            onchange="toggleVirtual(this)">
+          <label class="form-check-label small" for="showVirtualToggle">Bao gồm vị trí ảo</label>
+        </div>
+
         @if(isset($stocks) && method_exists($stocks, 'total'))
           <small class="text-body-secondary">{{ number_format($stocks->total()) }} dòng</small>
         @endif
@@ -324,6 +332,16 @@
       url.searchParams.set('show_zero', '1');
     } else {
       url.searchParams.delete('show_zero');
+    }
+    window.location.href = url.toString();
+  }
+
+  function toggleVirtual(cb) {
+    const url = new URL(window.location.href);
+    if (cb.checked) {
+        url.searchParams.set('show_virtual', '1');
+    } else {
+        url.searchParams.delete('show_virtual');
     }
     window.location.href = url.toString();
   }

@@ -25,10 +25,12 @@ class InventoryController extends Controller
         $products   = Product::where('status', 1)->orderBy('name')->get();
 
         // ── KPI cards ─────────────────────────────────────────────────────────
-        $totalSkuCount   = DB::table('stock')->distinct('product_id')->count('product_id');
-        $totalQty        = DB::table('stock')->sum('quantity');
-        $reservedQty     = DB::table('stock')->sum('reserved_qty');
-        $quarantineCount = DB::table('stock')->where('status', Stock::STATUS_QUARANTINE)->sum('quantity');
+        $internalLocationIds = Location::where('type', Location::TYPE_INTERNAL)->pluck('id');
+
+        $totalSkuCount   = DB::table('stock')->whereIn('location_id', $internalLocationIds)->distinct('product_id')->count('product_id');
+        $totalQty        = DB::table('stock')->whereIn('location_id', $internalLocationIds)->sum('quantity');
+        $reservedQty     = DB::table('stock')->whereIn('location_id', $internalLocationIds)->sum('reserved_qty');
+        $quarantineCount = DB::table('stock')->whereIn('location_id', $internalLocationIds)->where('status', Stock::STATUS_QUARANTINE)->sum('quantity');
 
         // ── Main query: tồn kho theo sản phẩm + vị trí ───────────────────────
         $query = DB::table('stock as s')
@@ -91,6 +93,11 @@ class InventoryController extends Controller
         // Chỉ hiển thị tồn kho > 0 mặc định, trừ khi lọc cụ thể
         if (!$request->filled('show_zero')) {
             $query->where('s.quantity', '>', 0);
+        }
+
+        // Mặc định chỉ hiện Internal, bật show_virtual mới hiện kho ảo
+        if (!$request->filled('show_virtual')) {
+            $query->where('l.type', Location::TYPE_INTERNAL);
         }
 
         $stocks = $query->orderBy('p.code')->orderBy('l.code')

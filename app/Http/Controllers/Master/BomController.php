@@ -204,7 +204,8 @@ class BomController extends Controller
         $result = Bom::detectCircularReference(
             produceProductIds: $produceIds,
             consumeProductIds: $consumeIds,
-            excludeBomId:      $currentBomId
+            excludeBomId:      $currentBomId,
+            bomType:           (int) $request->type
         );
 
         if ($result['has_cycle']) {
